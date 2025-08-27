@@ -1,18 +1,20 @@
-<x-layouts.app :title="__('Dashboard')">
-    <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-        </div>
-        <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-        </div>
+<x-layouts.app>
+  <x-sidebar>
+    <flux:heading size="xl" level="1" class="mb-2">Dashboard</flux:heading>
+    <flux:separator class="mb-2" />
+    <div class="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-40"></div>
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-40"></div>
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-40"></div>
     </div>
+    <div class="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-60"></div>
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-60"></div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-1 lg:grid-cols-3 gap-4">
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-48 lg:col-span-2">
+      </div>
+      <div class="border-2 border-dashed rounded-lg border-zinc-300 dark:border-zinc-600 h-32 md:h-48"></div>
+    </div>
+  </x-sidebar>
 </x-layouts.app>
