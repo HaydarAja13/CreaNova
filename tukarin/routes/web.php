@@ -1,22 +1,25 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Livewire\Volt\Volt;
 
 Route::get('/', function () {
-    return view('welcome');
-})->name('home');
+    return view('login');
+})->name('login');
 
-Route::view('dashboard', 'dashboard')
-    ->middleware(['auth', 'verified'])
-    ->name('dashboard');
+Route::prefix('admin')->group(function () {
+    Route::get('/', function () {
+        return view('admin.dashboard');
+    })->name('admin.dashboard');
+    
+    Route::get('/sampah-point', function () {
+        return view('admin.sampah-point');
+    })->name('admin.sampah-point');
 
-Route::middleware(['auth'])->group(function () {
-    Route::redirect('settings', 'settings/profile');
+    Route::get('/transaksi-langsung', function () {
+        return view('admin.transaksi-langsung');
+    })->name('admin.transaksi-langsung');
 
-    Volt::route('settings/profile', 'settings.profile')->name('settings.profile');
-    Volt::route('settings/password', 'settings.password')->name('settings.password');
-    Volt::route('settings/appearance', 'settings.appearance')->name('settings.appearance');
+    Route::get('/transaksi-jemput', function () {
+        return view('admin.transaksi-jemput');
+    })->name('admin.transaksi-jemput');
 });
-
-require __DIR__.'/auth.php';
