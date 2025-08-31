@@ -5,15 +5,19 @@
         <flux:brand href="#" logo="{{ asset('images/logo.svg') }}" name="Tukar.In" class="px-2" />
         <flux:separator />
         <flux:text class="text-xs">MENU</flux:text>
-        <flux:navlist variant="outline">
-            <flux:navlist.item icon="layout-dashboard" href="#" current>Beranda</flux:navlist.item>
-            <flux:navlist.item icon="recycle" href="#">Data Sampah</flux:navlist.item>
+                <flux:navlist variant="outline">
+            <flux:navlist.item icon="layout-dashboard" href="{{ route('admin.dashboard') }}" :current="request()->routeIs('admin.dashboard')">Beranda</flux:navlist.item>
+            <flux:navlist.item icon="recycle" href="{{ route('admin.sampah-point') }}" :current="request()->routeIs('admin.sampah-point')">Sampah & Point</flux:navlist.item>
+            <flux:navlist.group expandable heading="Transaksi" class="hidden lg:grid">
+                <flux:navlist.item href="{{ route('admin.transaksi-langsung') }}" :current="request()->routeIs('admin.transaksi-langsung')">Langsung</flux:navlist.item>
+                <flux:navlist.item href="{{ route('admin.transaksi-jemput') }}" :current="request()->routeIs('admin.transaksi-jemput')">Dijemput</flux:navlist.item>
+            </flux:navlist.group>
             <flux:navlist.item icon="bike" href="#">Data Kurir</flux:navlist.item>
             <flux:navlist.item icon="file-spreadsheet" href="#">Laporan</flux:navlist.item>
         </flux:navlist>
         <flux:spacer />
         <flux:navlist variant="outline">
-            <flux:navlist.item icon="sun-moon" href="#" x-data x-on:click="$flux.dark = ! $flux.dark">Tema Aplikasi
+            <flux:navlist.item icon="sun-moon" x-data x-on:click="$flux.dark = ! $flux.dark">Tema Aplikasi
             </flux:navlist.item>
             <flux:navlist.item icon="circle-question-mark" href="#">Bantuan</flux:navlist.item>
         </flux:navlist>

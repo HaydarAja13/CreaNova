@@ -12,14 +12,6 @@
 @source '../**/*.blade.php';
 @source '../**/*.js';
 
-@import url("https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap");
-
-* {
-    font-family: "Figtree", sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-}
-
 @theme {
     --color-zinc-50: #fafafa;
     --color-zinc-100: #f5f5f5;
@@ -33,15 +25,15 @@
     --color-zinc-900: #171717;
     --color-zinc-950: #0a0a0a;
 
-    --color-accent: var(--color-green-600);
-    --color-accent-content: var(--color-green-600);
+    --color-accent: #3e7b27;
+    --color-accent-content: #3e7b27;
     --color-accent-foreground: var(--color-white);
 }
 
 @layer theme {
     .dark {
-        --color-accent: var(--color-green-600);
-        --color-accent-content: var(--color-green-400);
+        --color-accent: #3e7b27;
+        --color-accent-content: #85a947;
         --color-accent-foreground: var(--color-white);
     }
 }
@@ -70,6 +62,34 @@ select:focus[data-flux-control] {
     @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
 }
 
+* {
+    font-family: "Figtree", sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+}
+
 /* \[:where(&)\]:size-4 {
     @apply size-4;
 } */
+
+/* Hide scrollbar for Chrome, Safari and Opera */
+*::-webkit-scrollbar {
+    display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+* {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+}
+
+/* Define a transition duration during page visits */
+html.is-changing .transition-fade {
+    transition: opacity 0.25s;
+    opacity: 1;
+}
+
+/* Define the styles for the unloaded pages */
+html.is-animating .transition-fade {
+    opacity: 0;
+}
