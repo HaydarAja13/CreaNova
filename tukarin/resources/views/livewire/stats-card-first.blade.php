@@ -24,8 +24,8 @@ use function Livewire\Volt\{state};
             <div class="flex items-center gap-4">
                 <flux:icon.circle-dollar-sign class="text-accent-content hidden md:block" />
                 <div>
-                    <flux:heading class="text-xs md:text-sm">Jumlah Point</flux:heading>
-                    <flux:heading class="text-lg md:text-xl">120 pt</flux:heading>
+                    <flux:heading class="text-xs md:text-sm">Jumlah Poin</flux:heading>
+                    <flux:heading class="text-lg md:text-xl">120 P</flux:heading>
                 </div>
             </div>
             <flux:icon.circle-arrow-out-up-right variant="micro" class="text-accent-content" />

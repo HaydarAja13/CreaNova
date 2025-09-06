@@ -11,11 +11,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap"
         rel="stylesheet">
     @fluxAppearance
+    @livewireStyles
 </head>
 
 <body class="h-full">
     {{ $slot }}
     @fluxScripts
+    @livewireScripts
 </body>
 
 </html>

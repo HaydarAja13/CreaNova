@@ -31,111 +31,144 @@ state(['barChartCategories' => ['Kertas', 'Besi', 'Kardus', 'Botol', 'Kaca', 'El
 @script
 <script>
     document.addEventListener('livewire:navigated', () => {
+        setTimeout(() => {
+            if (window.themeObserverSecond) {
+                window.themeObserverSecond.disconnect();
+            }
+
+            if (window.areaChart) {
+                window.areaChart.destroy();
+            }
+            if (window.barChart) {
+                window.barChart.destroy();
+            }
+
+            const getTheme = () => document.documentElement.classList.contains('dark') ? 'dark' : 'light';
+
+            const getForeColor = () => {
+                return document.documentElement.classList.contains('dark') ? '#f9fafb' : '#111827';
+            }
+
+            const chartElSampahMasuk = document.querySelector("#chart-sampah-masuk");
+            if (chartElSampahMasuk) {
+                // Chart 1: Sampah Masuk (Area)
+                const areaOptions = {
+                    chart: {
+                        type: 'area',
+                        height: '100%',
+                        toolbar: { show: false },
+                        background: 'transparent',
+                        foreColor: getForeColor()
+                    },
+                    theme: {
+                        mode: getTheme()
+                    },
+                    series: [
+                        {
+                            name: 'Langsung',
+                            data: @json($seriesLangsung)
+                        },
+                        {
+                            name: 'Dijemput',
+                            data: @json($seriesDijemput)
+                        }
+                    ],
+                    xaxis: {
+                        categories: @json($categoriesData)
+                    },
+                    colors: ['#3E7B27', '#F5C45E'],
+                    dataLabels: { enabled: false },
+                    stroke: { curve: 'smooth' },
+                    fill: {
+                        type: 'gradient',
+                        gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.9, stops: [0, 90, 100] }
+                    },
+                    legend: {
+                        position: 'bottom',
+                        horizontalAlign: 'center'
+                    },
+                    tooltip: {
+                        y: { formatter: (val) => val + " kg" }
+                    }
+                };
+                window.areaChart = new ApexCharts(chartElSampahMasuk, areaOptions);
+                window.areaChart.render();
+            }
+
+            const chartElKategoriSampah = document.querySelector("#chart-kategori-sampah");
+            if (chartElKategoriSampah) {
+                // Chart 2: Kategori Sampah (Bar)
+                const barOptions = {
+                    chart: {
+                        type: 'bar',
+                        height: '100%',
+                        toolbar: { show: false },
+                        background: 'transparent',
+                        foreColor: getForeColor()
+                    },
+                    theme: {
+                        mode: getTheme()
+                    },
+                    series: [{
+                        name: 'Jumlah',
+                        data: @json($barChartSeries)
+                    }],
+                    xaxis: {
+                        categories: @json($barChartCategories)
+                    },
+                    colors: ['#3E7B27'],
+                    plotOptions: {
+                        bar: {
+                            horizontal: false,
+                        }
+                    },
+                    tooltip: {
+                        x: { formatter: (val) => val + " kg" }
+                    }
+                };
+                window.barChart = new ApexCharts(chartElKategoriSampah, barOptions);
+                window.barChart.render();
+            }
+
+            // Observer for theme changes
+            if (window.areaChart && window.barChart) {
+                window.themeObserverSecond = new MutationObserver((mutations) => {
+                    mutations.forEach((mutation) => {
+                        if (mutation.attributeName === 'class') {
+                            const newTheme = getTheme();
+                            const newForeColor = getForeColor();
+
+                            window.areaChart.updateOptions({
+                                theme: { mode: newTheme },
+                                chart: { foreColor: newForeColor }
+                            });
+                            window.barChart.updateOptions({
+                                theme: { mode: newTheme },
+                                chart: { foreColor: newForeColor }
+                            });
+                        }
+                    });
+                });
+
+                window.themeObserverSecond.observe(document.documentElement, { attributes: true });
+            }
+        }, 0);
+    });
+
+    window.addEventListener('livewire:navigating', () => {
+        if (window.areaChart) {
+            window.areaChart.destroy();
+            window.areaChart = null;
+        }
+        if (window.barChart) {
+            window.barChart.destroy();
+            window.barChart = null;
+        }
         if (window.themeObserverSecond) {
             window.themeObserverSecond.disconnect();
+            window.themeObserverSecond = null;
         }
-
-        const getTheme = () => document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-
-        const getForeColor = () => {
-            return document.documentElement.classList.contains('dark') ? '#f9fafb' : '#111827';
-        }
-
-        // Chart 1: Sampah Masuk (Area)
-        const areaOptions = {
-            chart: {
-                type: 'area',
-                height: '100%',
-                toolbar: { show: false },
-                background: 'transparent',
-                foreColor: getForeColor()
-            },
-            theme: {
-                mode: getTheme()
-            },
-            series: [
-                {
-                    name: 'Langsung',
-                    data: @json($seriesLangsung)
-                },
-                {
-                    name: 'Dijemput',
-                    data: @json($seriesDijemput)
-                }
-            ],
-            xaxis: {
-                categories: @json($categoriesData)
-            },
-            colors: ['#3E7B27', '#F5C45E'],
-            dataLabels: { enabled: false },
-            stroke: { curve: 'smooth' },
-            fill: {
-                type: 'gradient',
-                gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.9, stops: [0, 90, 100] }
-            },
-            legend: {
-                position: 'bottom',
-                horizontalAlign: 'center'
-            },
-            tooltip: {
-                y: { formatter: (val) => val + " kg" }
-            }
-        };
-        const areaChart = new ApexCharts(document.querySelector("#chart-sampah-masuk"), areaOptions);
-        areaChart.render();
-
-        // Chart 2: Kategori Sampah (Bar)
-        const barOptions = {
-            chart: {
-                type: 'bar',
-                height: '100%',
-                toolbar: { show: false },
-                background: 'transparent',
-                foreColor: getForeColor()
-            },
-            theme: {
-                mode: getTheme()
-            },
-            series: [{
-                name: 'Jumlah',
-                data: @json($barChartSeries)
-            }],
-            xaxis: {
-                categories: @json($barChartCategories)
-            },
-            colors: ['#3E7B27'],
-            plotOptions: {
-                bar: {
-                    horizontal: false,
-                }
-            },
-            tooltip: {
-                x: { formatter: (val) => val + " kg" }
-            }
-        };
-        const barChart = new ApexCharts(document.querySelector("#chart-kategori-sampah"), barOptions);
-        barChart.render();
-
-        // Observer for theme changes
-        window.themeObserverSecond = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.attributeName === 'class') {
-                    const newTheme = getTheme();
-                    const newForeColor = getForeColor();
-
-                    areaChart.updateOptions({
-                        theme: { mode: newTheme },
-                        chart: { foreColor: newForeColor }
-                    });
-                    barChart.updateOptions({
-                        theme: { mode: newTheme },
-                        chart: { foreColor: newForeColor }
-                    });
-                }
-            });
-        });
-
-        window.themeObserverSecond.observe(document.documentElement, { attributes: true });
     });
+
 </script>
 @endscript

@@ -9,8 +9,8 @@ use function Livewire\Volt\{state};
 <div class="w-full h-auto rounded-lg bg-zinc-100 dark:bg-zinc-700 p-4 md:p-6 mb-4">
     <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-x-4 gap-y-2 mb-4">
         <div>
-            <flux:heading size="lg">Tabel Transaksi Langsung</flux:heading>
-            <flux:text>Daftar (Transaksi Langsung) beserta informasi detail</flux:text>
+            <flux:heading size="lg">Tabel Bank Sampah</flux:heading>
+            <flux:text>Daftar (Bank Sampah) beserta informasi detail</flux:text>
         </div>
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-x-4 gap-y-2">
             <flux:input icon="magnifying-glass" placeholder="Search..." class="max-w-xs" size="sm" />
@@ -26,12 +26,13 @@ use function Livewire\Volt\{state};
     <flux:table>
         <flux:table.columns>
             <flux:table.column></flux:table.column>
-            <flux:table.column>ID Transaksi</flux:table.column>
-            <flux:table.column>Nama Nasabah</flux:table.column>
-            <flux:table.column>Tanggal Setor</flux:table.column>
-            <flux:table.column>Total Poin</flux:table.column>
-            <flux:table.column>Berat Sampah (kg)</flux:table.column>
-            <flux:table.column>Foto Bukti</flux:table.column>
+            <flux:table.column>ID Bank Sampah</flux:table.column>
+            <flux:table.column>Nama Bank Sampah</flux:table.column>
+            <flux:table.column>Alamat</flux:table.column>
+            <flux:table.column>Email</flux:table.column>
+            <flux:table.column>Stok Sampah</flux:table.column>
+            <flux:table.column>Distribusi Poin </flux:table.column>
+            <flux:table.column>Status </flux:table.column>
             <flux:table.column></flux:table.column>
         </flux:table.columns>
         <flux:table.rows>
@@ -40,25 +41,25 @@ use function Livewire\Volt\{state};
                     <flux:checkbox wire:model="check" />
                 </flux:table.cell>
                 <flux:table.cell variant="strong">
-                    BS-001
+                    BS-0101
                 </flux:table.cell>
                 <flux:table.cell>
-                    <div class="flex items-center gap-x-2">
-                        <flux:avatar name="Mulmul" color="auto" circle />
-                        <flux:text>Pak Mulmul</flux:text>
-                    </div>
+                    Bank Sampah Resik Becik
                 </flux:table.cell>
                 <flux:table.cell>
-                    03 September 2025
+                    <flux:text class="truncate w-48">Jl. Melati No. 45, Surabaya</flux:text>
                 </flux:table.cell>
                 <flux:table.cell>
-                    1200
+                    resikbecik@gmail.com
                 </flux:table.cell>
                 <flux:table.cell>
-                    20kg
+                    10000Kg
                 </flux:table.cell>
                 <flux:table.cell>
-                    <flux:avatar as="button" src="{{ asset('images/plastic.avif') }}" />
+                    2000P
+                </flux:table.cell>
+                <flux:table.cell>
+                    <flux:badge variant="pill" icon="circle-small" color="green" size="sm">Aktif </flux:badge>
                 </flux:table.cell>
                 <flux:table.cell>
                     <flux:dropdown position="bottom" align="end" offset="-15">

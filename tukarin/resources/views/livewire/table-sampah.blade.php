@@ -14,7 +14,60 @@ use function Livewire\Volt\{state};
         </div>
         <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-x-4 gap-y-2">
             <flux:input icon="magnifying-glass" placeholder="Search..." class="max-w-xs" size="sm" />
-            <flux:button icon="cloud-download" size="sm">Export</flux:button>
+            <livewire:button-export />
+            @if(request()->is('superadmin*'))
+            <flux:modal.trigger name="delete-profile">
+                <flux:button icon="trash" size="sm">Hapus</flux:button>
+            </flux:modal.trigger>
+            <flux:button icon="plus" class="bg-accent" variant="primary" size="sm">Tambah</flux:button>
+            @endif
         </div>
     </div>
+    <livewire:modal-delete />
+    <flux:table>
+        <flux:table.columns>
+            <flux:table.column></flux:table.column>
+            <flux:table.column>Nama Jenis Sampah</flux:table.column>
+            <flux:table.column>Poin/Kg</flux:table.column>
+            <flux:table.column>Stok Terkumpul (Kg)</flux:table.column>
+            <flux:table.column>Distribusi Poin</flux:table.column>
+            <flux:table.column>Toleransi Validasi (%)</flux:table.column>
+            <flux:table.column>Status</flux:table.column>
+            <flux:table.column></flux:table.column>
+        </flux:table.columns>
+        <flux:table.rows>
+            <flux:table.row>
+                <flux:table.cell>
+                    <flux:checkbox wire:model="check" />
+                </flux:table.cell>
+                <flux:table.cell variant="strong">
+                    Kertas
+                </flux:table.cell>
+                <flux:table.cell>
+                    200
+                </flux:table.cell>
+                <flux:table.cell>
+                    200Kg
+                </flux:table.cell>
+                <flux:table.cell>
+                    1200p
+                </flux:table.cell>
+                <flux:table.cell>
+                    20%
+                </flux:table.cell>
+                <flux:table.cell>
+                    <flux:badge variant="pill" icon="circle-small" color="green" size="sm">Active</flux:badge>
+                </flux:table.cell>
+                <flux:table.cell>
+                    <flux:dropdown position="bottom" align="end" offset="-15">
+                        <flux:button variant="ghost" size="sm" icon="ellipsis-vertical" inset="top bottom">
+                        </flux:button>
+                        <flux:menu>
+                            <flux:menu.item icon="trash">Hapus</flux:menu.item>
+                        </flux:menu>
+                    </flux:dropdown>
+                </flux:table.cell>
+            </flux:table.row>
+        </flux:table.rows>
+    </flux:table>
 </div>

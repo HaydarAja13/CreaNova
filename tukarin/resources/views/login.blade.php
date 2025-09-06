@@ -12,7 +12,7 @@
                     <flux:input label="Email" type="email" placeholder="email@example.com" />
 
                     <flux:field>
-                        <div class="mb-3 flex justify-between">
+                        <div class="flex justify-between">
                             <flux:label>Password</flux:label>
 
                             <flux:link href="#" variant="subtle" class="text-sm">Lupa password?</flux:link>
@@ -33,16 +33,17 @@
                     Tukarin Demo - Built with
                     <flux:icon.heart class="inline text-red-500" /> by <flux:link href="https://fluxui.dev"
                         target="_blank">
-                        Flux UI</flux:link>
+                        CreaNova</flux:link>
                 </flux:subheading>
             </div>
         </div>
 
-        <div class="flex-1 p-4 max-lg:hidden">
+        <div x-data class="flex-1 p-4 max-lg:hidden">
             <div class="text-white relative rounded-lg h-full w-full bg-zinc-900 flex flex-col items-start justify-end p-16"
                 style="background-image: url('{{ asset('images/login_image.avif') }}'); background-size: cover; background-position: center; ">
                 <div class="dark:bg-black/60 bg-white/60 h-fit p-4 rounded-lg">
-                    <flux:heading size="xl" class="z-10">Tukar.In</flux:heading>
+                    {{-- image di bawah --}}
+                    <img x-bind:src="$flux.dark ? '{{ asset('images/dark_login_logo.svg') }}' : '{{ asset('images/light_login_logo.svg') }}'" alt="Tukar.In Logo" class="h-8 mb-4" />
                     <flux:subheading class="z-10">Selamat datang di portal Admin Tukar.In. Silakan masuk untuk mulai
                         mengelola operasional, memvalidasi setoran, dan
                         melayani proses penukaran sampah dari warga.</flux:subheading>
