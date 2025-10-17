@@ -23,10 +23,7 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
     try {
       _cameras = await availableCameras();
       if (_cameras!.isNotEmpty) {
-        _controller = CameraController(
-          _cameras![0], 
-          ResolutionPreset.high,
-        );
+        _controller = CameraController(_cameras![0], ResolutionPreset.high);
         await _controller!.initialize();
         if (mounted) {
           setState(() {
@@ -142,15 +139,12 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          Color(0xFF123524), 
-                          Color(0xFF3E7B27), 
-                          Color(0xFF85A947), 
+                          Color(0xFF123524),
+                          Color(0xFF3E7B27),
+                          Color(0xFF85A947),
                         ],
                       ),
-                      border: Border.all(
-                        color: Colors.white,
-                        width: 6, 
-                      ),
+                      border: Border.all(color: Colors.white, width: 6),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.3),
@@ -167,7 +161,7 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
                     child: const Icon(
                       Icons.camera_alt,
                       size: 32,
-                      color: Colors.white, 
+                      color: Colors.white,
                     ),
                   ),
                 ),

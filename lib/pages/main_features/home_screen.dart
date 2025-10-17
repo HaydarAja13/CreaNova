@@ -11,6 +11,7 @@ import '../../widgets/bank_card.dart';
 import '../../models/bank_site.dart';
 import 'maps/nearest_finder.dart';
 import 'kategori_barang/kategori_barang.dart';
+import 'chatbot/chatbot.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -328,9 +329,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-                    const _QuickAction(
+                    _QuickAction(
                       icon: Icons.smart_toy_outlined,
                       label: 'ChatBot',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const ChatBotPage(),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
