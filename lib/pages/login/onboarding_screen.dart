@@ -234,8 +234,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with TickerProvider
                   return Transform.translate(
                     offset: Offset(0, -_floatAnimation.value),
                     child: SizedBox(
-                      width: 200,
-                      height: 200,
+                      width: 160,
+                      height: 160,
                       child: Image.asset(assetName, height: 160),
                     ),
                   );

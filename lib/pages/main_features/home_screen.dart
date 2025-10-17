@@ -10,6 +10,7 @@ import '../../widgets/article_carousel.dart';
 import '../../widgets/bank_card.dart';
 import '../../models/bank_site.dart';
 import 'maps/nearest_finder.dart';
+import 'kategori_barang/kategori_barang.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,7 @@ class HomeScreen extends StatefulWidget {
   static const kGreen = AppColors.kGreen;
   static const kBg = AppColors.kBg;
   static const kText = AppColors.kText;
+  static const cucumberGreen = AppColors.kText;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -43,12 +45,26 @@ class _HomeScreenState extends State<HomeScreen> {
     final spacer = bottomSafe + kBarHeight + kFabDiameter * 0.2;
 
     final sites = const [
-      BankSite(name: 'BS. Omah Resik', address: 'Jl. Ulin Selatan VI No.114, Padangsari', hours:'09.00 - 16.00', lat:-7.0563, lng:110.4390, imageUrl: 'https://picsum.photos/id/1011/1200/800'),
-      BankSite(name: 'BS. Tembalang',  address: 'Jl. Pembangunan…',    hours:'08.00 - 17.00', lat:-7.0580, lng:110.4452, imageUrl: 'https://picsum.photos/id/1015/1200/800'),
+      BankSite(
+        name: 'BS. Omah Resik',
+        address: 'Jl. Ulin Selatan VI No.114, Padangsari',
+        hours: '09.00 - 16.00',
+        lat: -7.0563,
+        lng: 110.4390,
+        imageUrl: 'https://picsum.photos/id/1011/1200/800',
+      ),
+      BankSite(
+        name: 'BS. Tembalang',
+        address: 'Jl. Pembangunan…',
+        hours: '08.00 - 17.00',
+        lat: -7.0580,
+        lng: 110.4452,
+        imageUrl: 'https://picsum.photos/id/1015/1200/800',
+      ),
     ];
 
     final user = authService.value.currentUser;
-    final name  = user?.displayName;
+    final name = user?.displayName;
 
     return CustomScrollView(
       slivers: [
@@ -101,8 +117,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               // Tampilkan teks default jika data belum siap atau tidak ada
                               String locationText = 'Alamat belum diatur';
 
-                              if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                                final address = snapshot.data?['address'] as String?;
+                              if (snapshot.connectionState ==
+                                      ConnectionState.done &&
+                                  snapshot.hasData) {
+                                final address =
+                                    snapshot.data?['address'] as String?;
                                 if (address != null && address.isNotEmpty) {
                                   locationText = address;
                                 }
@@ -110,12 +129,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
                               return Row(
                                 children: [
-                                  const Icon(Icons.location_on, color: Colors.red, size: 16),
+                                  const Icon(
+                                    Icons.location_on,
+                                    color: Colors.red,
+                                    size: 16,
+                                  ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       locationText,
-                                      style: const TextStyle(color: Colors.white70, fontSize: 12.5),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12.5,
+                                      ),
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
@@ -135,9 +161,13 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(100),
                         ),
-                        child: const Icon(Icons.notifications_active, color: HomeScreen.kGreen, size: 28),
+                        child: const Icon(
+                          Icons.notifications_active,
+                          color: HomeScreen.kGreen,
+                          size: 28,
+                        ),
                       ),
-                    )
+                    ),
                   ],
                 ),
                 const SizedBox(height: 27),
@@ -147,9 +177,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(.06), blurRadius: 18, offset: const Offset(0, 8))],
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
                   child: Row(
                     // Mengatur alignment vertikal agar semua item berada di tengah
                     crossAxisAlignment: CrossAxisAlignment.center,
@@ -164,11 +203,31 @@ class _HomeScreenState extends State<HomeScreen> {
                             return const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Total Uang', style: TextStyle(color: HomeScreen.kText, fontSize: 12.5)),
+                                Text(
+                                  'Total Uang',
+                                  style: TextStyle(
+                                    color: HomeScreen.kText,
+                                    fontSize: 12.5,
+                                  ),
+                                ),
                                 SizedBox(height: 6),
-                                Text('-', style: TextStyle(color: HomeScreen.kText, fontSize: 28, fontWeight: FontWeight.w800, height: 1.0)),
+                                Text(
+                                  '-',
+                                  style: TextStyle(
+                                    color: HomeScreen.kText,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w800,
+                                    height: 1.0,
+                                  ),
+                                ),
                                 SizedBox(height: 2),
-                                Text('Rupiah', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                                Text(
+                                  'Rupiah',
+                                  style: TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 12,
+                                  ),
+                                ),
                               ],
                             );
                           }
@@ -178,19 +237,38 @@ class _HomeScreenState extends State<HomeScreen> {
                           final totalMoney = (data?['totalMoney'] as num?) ?? 0;
 
                           // 3. Memformat angka menjadi format mata uang (misal: 1.000.000)
-                          final formattedMoney = NumberFormat.decimalPattern('id_ID').format(totalMoney);
+                          final formattedMoney = NumberFormat.decimalPattern(
+                            'id_ID',
+                          ).format(totalMoney);
 
                           return Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Total Uang', style: TextStyle(color: HomeScreen.kText, fontSize: 12.5)),
+                              const Text(
+                                'Total Uang',
+                                style: TextStyle(
+                                  color: HomeScreen.kText,
+                                  fontSize: 12.5,
+                                ),
+                              ),
                               const SizedBox(height: 6),
                               Text(
                                 formattedMoney, // Menggunakan angka yang sudah diformat
-                                style: const TextStyle(color: HomeScreen.kText, fontSize: 28, fontWeight: FontWeight.w800, height: 1.0),
+                                style: const TextStyle(
+                                  color: HomeScreen.kText,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.0,
+                                ),
                               ),
                               const SizedBox(height: 2),
-                              const Text('Rupiah', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                              const Text(
+                                'Rupiah',
+                                style: TextStyle(
+                                  color: Colors.black54,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ],
                           );
                         },
@@ -202,7 +280,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       // Tombol Aksi
                       _MiniAction(icon: Icons.history, label: 'History'),
                       const SizedBox(width: 12),
-                      _MiniAction(icon: Icons.compare_arrows, label: 'Transfer'),
+                      _MiniAction(
+                        icon: Icons.compare_arrows,
+                        label: 'Transfer',
+                      ),
                     ],
                   ),
                 ),
@@ -224,12 +305,33 @@ class _HomeScreenState extends State<HomeScreen> {
                   spacing: 14,
                   runSpacing: 14,
                   children: [
-                    _QuickAction(icon: Icons.local_shipping, label: 'Dijemput Kurir', onTap: () {
-                      Navigator.pushNamed(context, '/pickup/location');
-                    }),
-                    const _QuickAction(icon: Icons.assignment_return, label: 'Setor Langsung'),
-                    const _QuickAction(icon: Icons.delete, label: 'Kategori Sampah'),
-                    const _QuickAction(icon: Icons.smart_toy_outlined, label: 'ChatBot'),
+                    _QuickAction(
+                      icon: Icons.local_shipping,
+                      label: 'Dijemput Kurir',
+                      onTap: () {
+                        Navigator.pushNamed(context, '/pickup/location');
+                      },
+                    ),
+                    const _QuickAction(
+                      icon: Icons.assignment_return,
+                      label: 'Setor Langsung',
+                    ),
+                    _QuickAction(
+                      icon: Icons.delete,
+                      label: 'Kategori Sampah',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const KategoriBarangPage(),
+                          ),
+                        );
+                      },
+                    ),
+                    const _QuickAction(
+                      icon: Icons.smart_toy_outlined,
+                      label: 'ChatBot',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -248,12 +350,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 const _SectionTitle('Bank Sampah Terdekat'),
                 const SizedBox(height: 10),
                 FutureBuilder<BankSite?>(
-                  future: findNearest(sites), // fungsi opsional yang aku kasih sebelumnya
+                  future: findNearest(
+                    sites,
+                  ), // fungsi opsional yang aku kasih sebelumnya
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
                       return const SizedBox(
                         height: 160,
-                        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       );
                     }
                     final nearest = snap.data ?? sites.first; // fallback
@@ -281,7 +387,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   items: const [
                     ArticleItem(
                       id: 'a1',
-                      title: 'Semarang Bersih Sukses Membentuk 1.074 Bank Sampah P…',
+                      title:
+                          'Semarang Bersih Sukses Membentuk 1.074 Bank Sampah P…',
                       date: '1 Agustus 2025',
                       source: 'TukarIn',
                       imageUrl: 'https://picsum.photos/id/1011/1200/800',
@@ -289,7 +396,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     ArticleItem(
                       id: 'a2',
-                      title: 'Panduan Pilah Sampah Plastik di Rumah yang Praktis',
+                      title:
+                          'Panduan Pilah Sampah Plastik di Rumah yang Praktis',
                       date: '29 Juli 2025',
                       source: 'TukarIn',
                       imageUrl: 'https://picsum.photos/id/1015/1200/800',
@@ -324,6 +432,7 @@ class AppColors {
   static const kGreen = Color(0xFF123524);
   static const kBg = Color(0xFFFAFAFA);
   static const kText = Color(0xFF0B1215);
+  static const cucumberGreen = Color(0xFF85A947);
 }
 
 // ==== SMALL PARTS ====
@@ -338,7 +447,8 @@ class _MiniAction extends StatelessWidget {
     return Column(
       children: [
         Container(
-          width: 44, height: 44,
+          width: 44,
+          height: 44,
           decoration: BoxDecoration(
             color: const Color(0xFFEFF4ED),
             borderRadius: BorderRadius.circular(12),
@@ -346,7 +456,10 @@ class _MiniAction extends StatelessWidget {
           child: Icon(icon, color: const Color(0xFF123524)),
         ),
         const SizedBox(height: 6),
-        Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF0B1215))),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF0B1215)),
+        ),
       ],
     );
   }
@@ -357,11 +470,7 @@ class _QuickAction extends StatelessWidget {
   final String label;
   final VoidCallback? onTap; // NEW
 
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
+  const _QuickAction({required this.icon, required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +479,7 @@ class _QuickAction extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap,               // NEW
+        onTap: onTap, // NEW
         borderRadius: BorderRadius.circular(16),
         child: Container(
           width: cardWidth,
@@ -384,7 +493,7 @@ class _QuickAction extends StatelessWidget {
                 color: Colors.black.withOpacity(.05),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
-              )
+              ),
             ],
           ),
           child: Row(
@@ -419,13 +528,19 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-
 class _SectionTitle extends StatelessWidget {
   final String text;
   const _SectionTitle(this.text);
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: AppColors.kText));
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 16.5,
+        fontWeight: FontWeight.w700,
+        color: AppColors.kText,
+      ),
+    );
   }
 }
 
@@ -437,12 +552,23 @@ class _SectionHeaderRight extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Text(left, style: const TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: AppColors.kText)),
+        Text(
+          left,
+          style: const TextStyle(
+            fontSize: 16.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.kText,
+          ),
+        ),
         const Spacer(),
-        Text(right, style: const TextStyle(color: AppColors.kGreen, fontWeight: FontWeight.w600)),
+        Text(
+          right,
+          style: const TextStyle(
+            color: AppColors.kGreen,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }
 }
-
-
