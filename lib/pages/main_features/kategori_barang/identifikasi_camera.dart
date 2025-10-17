@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'dart:io';
+import '../../../services/image_recognition_service.dart';
+import '../../../widgets/waste_identification_result.dart';
 
 class IdentifikasiCameraPage extends StatefulWidget {
   const IdentifikasiCameraPage({super.key});
@@ -12,6 +15,10 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
   CameraController? _controller;
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
+  bool _isProcessing = false;
+  Map<String, dynamic>? _identificationResult;
+  XFile? _capturedImage;
+  bool _showFlash = false;
 
   @override
   void initState() {
@@ -43,23 +50,86 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
   }
 
   Future<void> _takePicture() async {
-    if (_controller != null && _controller!.value.isInitialized) {
+    if (_controller != null &&
+        _controller!.value.isInitialized &&
+        !_isProcessing) {
+      // Show flash effect first
+      setState(() {
+        _showFlash = true;
+      });
+
+      // Brief flash duration
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      setState(() {
+        _isProcessing = true;
+        _showFlash = false;
+      });
+
       try {
         final XFile image = await _controller!.takePicture();
+
+        if (mounted) {
+          // Set captured image to freeze the camera preview
+          setState(() {
+            _capturedImage = image;
+          });
+
+          // Add small delay for better UX
+          await Future.delayed(const Duration(milliseconds: 1500));
+
+          // Process image with AI
+          final result = await ImageRecognitionService.identifyWaste(
+            File(image.path),
+          );
+
+          if (mounted) {
+            if (result != null) {
+              setState(() {
+                _identificationResult = result;
+                _isProcessing = false;
+              });
+            } else {
+              // Use fallback data for demo purposes
+              setState(() {
+                _identificationResult =
+                    ImageRecognitionService.getFallbackResult();
+                _isProcessing = false;
+              });
+            }
+          }
+        }
+      } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Foto berhasil diambil! Sedang menganalisis...'),
-              backgroundColor: Colors.green,
+              content: Text('Terjadi kesalahan. Silakan coba lagi.'),
+              backgroundColor: Colors.red,
             ),
           );
-          await Future.delayed(const Duration(seconds: 2));
-          Navigator.pop(context);
+          setState(() {
+            _isProcessing = false;
+            _capturedImage = null; // Reset captured image on error
+            _showFlash = false;
+          });
         }
-      } catch (e) {
-        print('Error taking picture: $e');
       }
     }
+  }
+
+  void _closeResult() {
+    setState(() {
+      _identificationResult = null;
+      _capturedImage = null; // Reset captured image when closing result
+      _showFlash = false;
+    });
+  }
+
+  void _scanAgain() {
+    setState(() {
+      _capturedImage = null; // Reset captured image to resume live camera
+      _showFlash = false;
+    });
   }
 
   @override
@@ -69,7 +139,16 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
       body: SafeArea(
         child: Stack(
           children: [
-            if (_isInitialized && _controller != null)
+            if (_capturedImage != null)
+              // Show captured image when processing
+              Positioned.fill(
+                child: Image.file(
+                  File(_capturedImage!.path),
+                  fit: BoxFit.cover,
+                ),
+              )
+            else if (_isInitialized && _controller != null)
+              // Show live camera preview
               Positioned.fill(child: CameraPreview(_controller!))
             else
               const Center(
@@ -129,7 +208,7 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
               right: 0,
               child: Center(
                 child: GestureDetector(
-                  onTap: _takePicture,
+                  onTap: _isProcessing ? null : _takePicture,
                   child: Container(
                     width: 80,
                     height: 80,
@@ -178,10 +257,12 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
                   color: Colors.black.withValues(alpha: 0.6),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Text(
-                  'Arahkan kamera ke sampah yang ingin diidentifikasi',
+                child: Text(
+                  _isProcessing
+                      ? 'Sedang menganalisis gambar...'
+                      : 'Arahkan kamera ke sampah yang ingin diidentifikasi',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
@@ -189,6 +270,59 @@ class _IdentifikasiCameraPageState extends State<IdentifikasiCameraPage> {
                 ),
               ),
             ),
+
+            // Loading overlay
+            if (_isProcessing)
+              Container(
+                color: Colors.black.withValues(alpha: 0.7),
+                child: const Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 60,
+                        height: 60,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 4,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      Text(
+                        'Menganalisis...',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(height: 8),
+                      Text(
+                        'Mohon tunggu sebentar',
+                        style: TextStyle(color: Colors.white70, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+            // Flash effect overlay
+            if (_showFlash)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.white,
+                ),
+              ),
+
+            // Result overlay
+            if (_identificationResult != null)
+              WasteIdentificationResult(
+                result: _identificationResult!,
+                onClose: _closeResult,
+                onScanAgain: _scanAgain,
+              ),
           ],
         ),
       ),
