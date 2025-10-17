@@ -11,7 +11,7 @@ String buildStaticMapUrl({
   int width = 600,
   int height = 300,
   int scale = 2,
-  String markerColor = 'green',
+  String markerColor = 'red',
 }) {
   final params = {
     'center': '$lat,$lng',

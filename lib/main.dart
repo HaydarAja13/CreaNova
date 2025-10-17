@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:myapp/pages/login/complete_profile_page.dart';
+import 'package:myapp/pages/main_features/maps/nearest_bank_map_screen.dart';
 import 'package:myapp/pages/main_features/profile/account_info_screen.dart';
 import 'package:myapp/pages/main_features/profile/address_screen.dart';
 import 'package:myapp/pages/main_features/scan_qr.dart';
@@ -54,6 +55,7 @@ class MyApp extends StatelessWidget {
         '/pickup/location': (_) => const PickupLocationScreen(),
         '/pickup/form': (_) => const PickupFormScreen(),
         '/pickup/track': (_) => const PickupTrackingScreen(),
+        '/maps/nearest': (_) => const NearestBankMapScreen(),
       },
     );
   }

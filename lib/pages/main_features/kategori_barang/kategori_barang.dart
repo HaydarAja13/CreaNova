@@ -53,15 +53,15 @@ class _KategoriBarangPageState extends State<KategoriBarangPage> {
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
-                          padding: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.all(1),
                           child: const Icon(
-                            Icons.arrow_back_ios,
-                            size: 20,
+                            Icons.arrow_back,
+                            size: 24,
                             color: Colors.black87,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 18),
                       const Text(
                         'Kategori Sampah',
                         style: TextStyle(

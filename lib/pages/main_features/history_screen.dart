@@ -1,4 +1,6 @@
 // lib/history_screen.dart
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -12,58 +14,26 @@ class _HistoryScreenState extends State<HistoryScreen> {
   static const kGreen = Color(0xFF123524);
   static const kText = Color(0xFF0B1215);
 
-  int _tabIndex = 0; // 0=Semua, 1=Dalam Proses, 2=Selesai (default mirip mock)
-  int _expandedIndex = -1; // item yang lagi dibuka (timeline). -1 kalau tidak ada
+  int _tabIndex = 0; // 0=Semua, 1=Dalam Proses, 2=Selesai
+  int _expandedIndex = -1;
   String _query = '';
+
+  final _db = FirebaseFirestore.instance;
 
   @override
   Widget build(BuildContext context) {
-    // Data dummy
-    final all = <_HistoryItem>[
-      _HistoryItem(
-        icon: Icons.local_shipping, // kurir/penjemputan
-        title: 'Bank Sampah Omah Resik',
-        weightKg: 2.1,
-        points: 100,
-        dateText: '6/08/2025 · 12:00',
-        status: _Status.inProgress,
-        totalJenis: 2,
-      ),
-      _HistoryItem(
-        icon: Icons.restore_from_trash,
-        title: 'Bank Sampah Omah Resik',
-        weightKg: 1.0,
-        points: 50,
-        dateText: '6/08/2025 · 12:00',
-        status: _Status.done,
-        totalJenis: 1,
-      ),
-      _HistoryItem(
-        icon: Icons.download_rounded,
-        title: 'Bank Sampah Omah Resik',
-        weightKg: 1.0,
-        points: 50,
-        dateText: '6/08/2025 · 12:00',
-        status: _Status.done,
-        totalJenis: 1,
-      ),
-      _HistoryItem(
-        icon: Icons.local_shipping,
-        title: 'Bank Sampah Omah Resik',
-        weightKg: 2.1,
-        points: 100,
-        dateText: '6/08/2025 · 12:00',
-        status: _Status.done,
-        totalJenis: 2,
-      ),
-    ];
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return const Center(child: Text('Silakan login terlebih dahulu'));
+    }
 
-    List<_HistoryItem> filtered = all.where((e) {
-      if (_tabIndex == 1 && e.status != _Status.inProgress) return false;
-      if (_tabIndex == 2 && e.status != _Status.done) return false;
-      if (_query.isEmpty) return true;
-      return e.title.toLowerCase().contains(_query.toLowerCase());
-    }).toList();
+    // Stream semua order user, diurutkan terbaru
+    final stream = _db
+        .collection('pickup_orders')
+        .where('userId', isEqualTo: uid)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots();
 
     return SafeArea(
       bottom: false,
@@ -93,7 +63,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 _SquareIconButton(
                   icon: Icons.tune_rounded,
                   onTap: () {
-                    // TODO: buka bottom sheet filter
+                    // TODO: bottom sheet filter tambahan (tanggal, bank, dll.)
                   },
                 ),
               ],
@@ -105,40 +75,103 @@ class _HistoryScreenState extends State<HistoryScreen> {
               index: _tabIndex,
               onChanged: (i) => setState(() {
                 _tabIndex = i;
-                // kalau bukan "Dalam Proses", tutup expanded
                 if (_tabIndex != 1) _expandedIndex = -1;
               }),
             ),
             const SizedBox(height: 10),
 
-            // List
+            // List from Firestore
             Expanded(
               child: Padding(
-                padding: EdgeInsets.only(bottom: 12),
-                child: ListView.separated(
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (ctx, i) {
-                    final item = filtered[i];
-                    final expanded = (_tabIndex == 1 && _expandedIndex == i);
+                padding: const EdgeInsets.only(bottom: 12),
+                child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: stream,
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snap.hasError) {
+                      return Center(child: Text('Gagal memuat: ${snap.error}'));
+                    }
+                    final docs = snap.data?.docs ?? [];
 
-                    return Column(
-                      children: [
-                        _HistoryCard(
-                          item: item,
-                          expanded: expanded,
-                          onExpandToggle: () {
-                            if (_tabIndex != 1) return;
-                            setState(() {
-                              _expandedIndex = expanded ? -1 : i;
-                            });
-                          },
-                        ),
-                        if (expanded) ...[
-                          const SizedBox(height: 6),
-                          _TimelineBox(), // detail proses versi pertama mock
-                        ],
-                      ],
+                    // Map Firestore -> _HistoryItem
+                    final all = docs.map((d) {
+                      final m = d.data();
+                      final statusStr = (m['status'] as String?) ?? 'requested';
+                      final status = _mapStatus(statusStr);
+                      final weight = (m['totalWeight'] as num?)?.toDouble() ?? 0.0;
+                      final points = (m['totalPoints'] as num?)?.toInt() ?? 0;
+                      final bankName = (m['bankName'] as String?) ?? 'Bank Sampah';
+                      final createdAt = m['createdAt'];
+                      final dateText = _fmtDate(createdAt);
+
+                      final items = (m['items'] as List?) ?? const [];
+                      final totalJenis = items.length;
+
+                      final icon = status == _Status.inProgress
+                          ? Icons.local_shipping
+                          : Icons.assignment_return;
+
+                      return _HistoryItem(
+                        id: d.id,
+                        icon: icon,
+                        title: bankName,
+                        weightKg: weight,
+                        points: points,
+                        dateText: dateText,
+                        status: status,
+                        totalJenis: totalJenis,
+                      );
+                    }).toList();
+
+                    // Filter by tab & search query (client-side)
+                    List<_HistoryItem> filtered = all.where((e) {
+                      if (_tabIndex == 1 && e.status != _Status.inProgress) return false;
+                      if (_tabIndex == 2 && e.status != _Status.done) return false;
+                      if (_query.isEmpty) return true;
+                      return e.title.toLowerCase().contains(_query.toLowerCase());
+                    }).toList();
+
+                    if (filtered.isEmpty) {
+                      return const Center(
+                        child: Text('Belum ada riwayat untuk filter ini'),
+                      );
+                    }
+
+                    return ListView.separated(
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, i) {
+                        final item = filtered[i];
+                        final expanded = (_tabIndex == 1 && _expandedIndex == i);
+
+                        return Column(
+                          children: [
+                            _HistoryCard(
+                              item: item,
+                              expanded: expanded,
+                              onExpandToggle: () {
+                                if (_tabIndex != 1) return;
+                                setState(() {
+                                  _expandedIndex = expanded ? -1 : i;
+                                });
+                              },
+                              onTap: () { // <-- NEW: open tracking page
+                                Navigator.pushNamed(
+                                  context,
+                                  '/pickup/track', // must be registered in routes
+                                  arguments: {'orderId': item.id},
+                                );
+                              },
+                            ),
+                            if (expanded) ...[
+                              const SizedBox(height: 6),
+                              const _TimelineBox(), // mock timeline seperti UI awal
+                            ],
+                          ],
+                        );
+                      },
                     );
                   },
                 ),
@@ -149,12 +182,49 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
   }
+
+  // ===== Helpers =====
+
+  static _Status _mapStatus(String s) {
+    // Kelompokkan status Firestore ke 2 tab UI:
+    // inProgress: requested/assigned/on_route/arrived
+    // done: delivered/cancelled
+    switch (s) {
+      case 'delivered':
+      case 'cancelled':
+      case 'done':
+        return _Status.done;
+      case 'requested':
+      case 'assigned':
+      case 'on_route':
+      case 'arrived':
+      default:
+        return _Status.inProgress;
+    }
+  }
+
+  static String _fmtDate(dynamic ts) {
+    // ts bisa Timestamp, DateTime, atau null
+    DateTime? dt;
+    if (ts is Timestamp) dt = ts.toDate();
+    if (ts is DateTime) dt = ts;
+    dt ??= DateTime.now();
+    // Format ringan: dd/MM/yyyy · HH:mm
+    final d = dt.day.toString().padLeft(2, '0');
+    final m = dt.month.toString().padLeft(2, '0');
+    final y = dt.year;
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    return '$d/$m/$y · $hh:$mm';
+    // (Kalau mau pakai intl, silakan ganti)
+  }
 }
 
 /// ===== Models =====
 enum _Status { inProgress, done }
 
 class _HistoryItem {
+  final String id;
   final IconData icon;
   final String title;
   final double weightKg;
@@ -164,6 +234,7 @@ class _HistoryItem {
   final int totalJenis;
 
   const _HistoryItem({
+    required this.id,
     required this.icon,
     required this.title,
     required this.weightKg,
@@ -174,7 +245,7 @@ class _HistoryItem {
   });
 }
 
-/// ===== Widgets kecil =====
+/// ===== Widgets kecil (UI dipertahankan) =====
 
 class _SearchField extends StatelessWidget {
   final String hint;
@@ -255,7 +326,6 @@ class _Tabs extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 8),
-        // indicator strip di bawah tab aktif
         Stack(
           children: [
             Container(height: 1, color: Colors.black12),
@@ -267,7 +337,7 @@ class _Tabs extends StatelessWidget {
               },
               duration: const Duration(milliseconds: 200),
               child: Container(
-                width: MediaQuery.of(context).size.width / 3 - 16, // kira2 selebar tiap tab
+                width: MediaQuery.of(context).size.width / 3 - 16,
                 height: 3,
                 color: kGreen,
               ),
@@ -323,6 +393,7 @@ class _StatusChip extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
       child: Text(label,
           style: TextStyle(
               color: textColor, fontSize: 12.5, fontWeight: FontWeight.w600)),
@@ -334,10 +405,13 @@ class _HistoryCard extends StatelessWidget {
   final _HistoryItem item;
   final bool expanded;
   final VoidCallback onExpandToggle;
+  final VoidCallback? onTap;
+
   const _HistoryCard({
     required this.item,
     required this.expanded,
     required this.onExpandToggle,
+    this.onTap,
   });
 
   static const kText = _HistoryScreenState.kText;
@@ -349,77 +423,81 @@ class _HistoryCard extends StatelessWidget {
       color: Colors.white,
       borderRadius: BorderRadius.circular(14),
       elevation: 0,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // leading icon
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFEFF4ED),
-                    borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // leading icon
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEFF4ED),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(item.icon, color: kGreen),
                   ),
-                  child: Icon(item.icon, color: kGreen),
-                ),
-                const SizedBox(width: 12),
-                // title + meta
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(item.title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, color: kText)),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(
-                            '${item.weightKg.toStringAsFixed(1)}Kg',
+                  const SizedBox(width: 12),
+                  // title + meta
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(item.title,
                             style: const TextStyle(
-                                color: Colors.deepOrange, fontWeight: FontWeight.w700),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text('|'),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${item.points} Pts',
+                                fontWeight: FontWeight.w700, color: kText)),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Text(
+                              '${item.weightKg.toStringAsFixed(1)}Kg',
+                              style: const TextStyle(
+                                  color: Colors.deepOrange, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text('|'),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${item.points} Rupiah',
+                              style: const TextStyle(
+                                  color: Colors.deepOrange, fontWeight: FontWeight.w700),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(item.dateText,
                             style: const TextStyle(
-                                color: Colors.deepOrange, fontWeight: FontWeight.w700),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(item.dateText,
-                          style: const TextStyle(
-                              color: Colors.black45, fontSize: 12)),
-                    ],
+                                color: Colors.black45, fontSize: 12)),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                _StatusChip(item.status),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // total jenis + caret
-            Row(
-              children: [
-                Text('Total : ${item.totalJenis} Jenis Sampah',
-                    style: const TextStyle(color: Colors.black54)),
-                const Spacer(),
-                InkWell(
-                  onTap: onExpandToggle,
-                  child: Icon(
-                    expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                    color: Colors.black54,
-                  ),
-                )
-              ],
-            ),
-          ],
+                  const SizedBox(width: 12),
+                  _StatusChip(item.status),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // total jenis + caret
+              Row(
+                children: [
+                  Text('Total : ${item.totalJenis} Jenis Sampah',
+                      style: const TextStyle(color: Colors.black54)),
+                  const Spacer(),
+                  InkWell(
+                    onTap: onExpandToggle,
+                    child: Icon(
+                      expanded ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+                      color: Colors.black54,
+                    ),
+                  )
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -427,20 +505,19 @@ class _HistoryCard extends StatelessWidget {
 }
 
 class _TimelineBox extends StatelessWidget {
-  // urutan proses seperti mock
+  // Mock timeline seperti UI awal
   final steps = const [
     ('Permintaan penjemputan berhasil dibuat.',
-    'Kurir akan menjemput pada Rabu, 6 Agustus 2025\nPukul 08.00 - 09.00'),
+    'Kurir akan menjemput sesuai jadwal yang dipilih.'),
     ('Kurir dalam perjalanan.',
-    'Kurir sedang dalam perjalanan menuju tempat Anda.\nPastikan sampah sudah siap untuk dijemput'),
+    'Kurir sedang menuju lokasi Anda. Pastikan sampah siap.'),
     ('Kurir sudah sampai di lokasi penjemputan.',
     'Kurir akan mengambil sampah yang sudah Anda siapkan.'),
     ('Kurir menuju bank sampah.',
-    'Kurir sedang membawa sampah Anda ke bank sampah.'),
+    'Kurir sedang membawa sampah ke bank sampah.'),
     ('Menunggu konfirmasi.',
-    'Sampah Anda sedang ditimbang di bank sampah. Poin akan dihitung sesuai hasil timbangan.'),
-    ('Poin berhasil ditambahkan.',
-    'Anda mendapat 50 Pts dari hasil penimbangan.'),
+    'Sampah ditimbang. Poin dihitung sesuai hasil timbangan.'),
+    ('Poin berhasil ditambahkan.', 'Selamat, poin telah masuk ke akun Anda.'),
   ];
 
   const _TimelineBox();
@@ -463,7 +540,6 @@ class _TimelineBox extends StatelessWidget {
         children: List.generate(steps.length, (i) {
           final title = steps[i].$1;
           final desc = steps[i].$2;
-          // warna node: hijau untuk progress, oranye untuk terakhir
           final isLast = i == steps.length - 1;
           final dotColor = isLast ? Colors.deepOrange : _HistoryScreenState.kGreen;
 
@@ -517,7 +593,6 @@ class _TimeLineRow extends StatelessWidget {
                   ],
                 ),
               ),
-              // line
               if (!isLast)
                 Container(
                   width: 2,

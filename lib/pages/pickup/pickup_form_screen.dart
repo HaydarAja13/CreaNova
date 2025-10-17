@@ -22,6 +22,85 @@ class PickupFormScreen extends StatefulWidget {
   State<PickupFormScreen> createState() => _PickupFormScreenState();
 }
 
+class _SubmitSuccessSheet extends StatelessWidget {
+  final BankSite bank;
+  final String timeslot;
+  final double totalWeight;
+  final String orderId;
+
+  const _SubmitSuccessSheet({
+    required this.bank,
+    required this.timeslot,
+    required this.totalWeight,
+    required this.orderId,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final btnStyle = ElevatedButton.styleFrom(
+      backgroundColor: PickupFormScreen.kGreen,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    );
+
+    return WillPopScope(
+      onWillPop: () async => false,
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: 16 + MediaQuery.of(context).padding.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Pengajuan Berhasil 🎉',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            Text(bank.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text(timeslot, style: const TextStyle(color: Colors.black54)),
+            const SizedBox(height: 8),
+            Text('Perkiraan Berat: ${totalWeight.toStringAsFixed(1)} Kg'),
+            const SizedBox(height: 16),
+
+            // Primary: Back to Home (/shell)
+            SizedBox(
+              width: double.infinity, height: 54,
+              child: ElevatedButton(
+                style: btnStyle,
+                onPressed: () {
+                  Navigator.pop(context); // close sheet
+                  // Go to shell/home and clear stack
+                  Navigator.pushNamedAndRemoveUntil(context, '/shell', (route) => false);
+                },
+                child: const Text('Kembali ke Beranda',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Secondary: Track now — same style as "Ajukan Penjemputan"
+            SizedBox(
+              width: double.infinity, height: 54,
+              child: ElevatedButton(
+                style: btnStyle,
+                onPressed: () {
+                  Navigator.pop(context); // close sheet
+                  Navigator.pushReplacementNamed(
+                    context, '/pickup/track',
+                    arguments: {'orderId': orderId},
+                  );
+                },
+                child: const Text('Lacak Sekarang',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),// disable back
+    );
+  }
+}
+
 // Pricing cache: type -> {coefPoints, minKg, maxKg}
 Map<String, Map<String, num>> _pricing = {};
 bool _pricingLoaded = false;
@@ -316,7 +395,22 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
 
       if (!mounted) return;
       // 3) Navigasi ke tracking
-      Navigator.pushReplacementNamed(context, '/pickup/track', arguments: {'orderId': orderId});
+      await showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        isDismissible: false,
+        enableDrag: false,
+        builder: (_) => _SubmitSuccessSheet(
+          bank: bank,
+          timeslot: _timeslot,
+          totalWeight: totalWeight,
+          orderId: orderId!,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -542,8 +636,8 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Total Perkiraan Poin', style: TextStyle(fontWeight: FontWeight.w600)),
-                Text('$totalPoints Pts', style: const TextStyle(fontWeight: FontWeight.bold, color: PickupFormScreen.kGreen)),
+                const Text('Total Perkiraan Uang', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text('$totalPoints Rupiah', style: const TextStyle(fontWeight: FontWeight.bold, color: PickupFormScreen.kGreen)),
               ],
             ),
           ],
@@ -632,7 +726,7 @@ class _AddWasteItemDialogState extends State<_AddWasteItemDialog> {
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'Perkiraan poin: $previewPts Pts',
+              'Perkiraan Uang: $previewPts Rupiah',
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
           ),
@@ -670,7 +764,6 @@ class _WasteListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
         child: Row(
           children: [
-            Container(width: 56, height: 56, decoration: BoxDecoration(color: const Color(0xFFF1F5EF), borderRadius: BorderRadius.circular(12))),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -679,9 +772,8 @@ class _WasteListItem extends StatelessWidget {
                   Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                   const SizedBox(height: 2),
                   Text('Perkiraan: ${item.weightKg.toStringAsFixed(1)} Kg', style: const TextStyle(color: Colors.black54, fontSize: 13)),
-                  Text('Poin: ${item.points} Pts', style: const TextStyle(color: PickupFormScreen.kGreen, fontSize: 13, fontWeight: FontWeight.w600)),
                   Text(
-                    'Poin: ${item.points} Pts',
+                    'Poin: ${item.points} Rupiah',
                     style: const TextStyle(color: PickupFormScreen.kGreen, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
