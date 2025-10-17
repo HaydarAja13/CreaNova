@@ -316,7 +316,7 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
           // top address pill (biar mirip mock) — opsional
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               child: InkWell(
                 borderRadius: BorderRadius.circular(24),
                 onTap: _goToUser,               // <-- ini yang bikin kamera gerak

@@ -1,7 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-// import 'package:geocoding/geocoding.dart'; // Dihapus, tidak lagi digunakan
-// import 'package:geolocator/geolocator.dart'; // Dihapus, tidak lagi digunakan
 import 'package:myapp/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -12,6 +10,7 @@ import '../../services/user_repository.dart';
 import '../../widgets/article_carousel.dart';
 import '../../widgets/bank_card.dart';
 import '../../models/bank_site.dart';
+import 'chatbot/chatbot.dart';
 import 'maps/nearest_bank_map_screen.dart';
 import 'maps/nearest_finder.dart';
 import 'kategori_barang/kategori_barang.dart';
@@ -269,9 +268,17 @@ class _HomeScreenState extends State<HomeScreen> {
                           );
                         },
                       ),
-                      const _QuickAction(
+                      _QuickAction(
                         icon: Icons.smart_toy_outlined,
                         label: 'ChatBot',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ChatBotPage(),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
