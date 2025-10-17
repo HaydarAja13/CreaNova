@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "48077676551",
+    "project_id": "tukarin-project",
+    "storage_bucket": "tukarin-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:48077676551:android:90ea90530d7821cc2c4aa2",
+        "android_client_info": {
+          "package_name": "com.example.myapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDl0Dc2ncsIvgOxBSBaL_-eDhVF-O0qQYs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
