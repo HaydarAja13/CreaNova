@@ -457,14 +457,14 @@ class _OrderDetailSheet extends StatelessWidget {
                     children: [
                       Expanded(child: _metric('Perkiraan Berat', '${totalWeight.toStringAsFixed(1)} Kg')),
                       const SizedBox(width: 10),
-                      Expanded(child: _metric('Perkiraan Poin', '$totalPoints Pts')),
+                      Expanded(child: _metric('Perkiraan Saldo', '$totalPoints Rupiah')),
                     ],
                   ),
 
                   if (items.isNotEmpty) ...[
                     const SizedBox(height: 12),
                     SizedBox(
-                      height: 56,
+                      height: 40,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         itemCount: items.length,
@@ -488,7 +488,7 @@ class _OrderDetailSheet extends StatelessWidget {
                                 const SizedBox(width: 8),
                                 Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
                                 const SizedBox(width: 8),
-                                Text('${w.toStringAsFixed(1)} Kg • $pts pts', style: const TextStyle(color: Colors.black54)),
+                                Text('${w.toStringAsFixed(1)} Kg • $pts Rupiah', style: const TextStyle(color: Colors.black54)),
                               ],
                             ),
                           );
