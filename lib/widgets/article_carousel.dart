@@ -146,8 +146,8 @@ class _ArticleSlide extends StatelessWidget {
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                   colors: [
-                    Colors.black.withOpacity(.28),
-                    Colors.black.withOpacity(.58),
+                    Colors.black.withValues(alpha: 0.28),
+                    Colors.black.withValues(alpha: 0.58),
                   ],
                 ),
               ),

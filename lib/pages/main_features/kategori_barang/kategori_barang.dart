@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'identifikasi_camera.dart';
 import 'detail_kategori_barang.dart';
+import '../../../models/trash_category.dart';
+import '../../../services/trash_category_service.dart';
 
 class KategoriBarangPage extends StatefulWidget {
   const KategoriBarangPage({super.key});
@@ -12,27 +14,82 @@ class KategoriBarangPage extends StatefulWidget {
 class _KategoriBarangPageState extends State<KategoriBarangPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  List<TrashCategory> _categories = [];
+  bool _isLoading = true;
 
   static const cucumberGreen = Color(0xFF85A947);
   static const mediumGreenten = Color(0xFFECF2EA);
 
-  // Data kategori barang
-  final List<Map<String, dynamic>> _kategoriBarang = [
-    {'nama': 'Botol Plastik', 'harga': '50 Pts/Kg'},
-    {'nama': 'Kardus', 'harga': '75 Pts/Kg'},
-    {'nama': 'Koran', 'harga': '50 Pts/Kg'},
-    {'nama': 'Minyak Jelantah', 'harga': '40 Pts/Kg'},
-    {'nama': 'Botol Kaca', 'harga': '60 Pts/Kg'},
-    {'nama': 'Kaleng Besi', 'harga': '75 Pts/Kg'},
-    {'nama': 'Sampah Daun', 'harga': '20 Pts/Kg'},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
 
-  List<Map<String, dynamic>> get _filteredKategoriBarang {
-    if (_searchQuery.isEmpty) {
-      return _kategoriBarang;
+  Future<void> _loadCategories() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final categories = await TrashCategoryService.getAllCategories();
+      setState(() {
+        _categories = categories;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat kategori: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'Coba Lagi',
+              textColor: Colors.white,
+              onPressed: _loadCategories,
+            ),
+          ),
+        );
+      }
     }
-    return _kategoriBarang.where((item) {
-      return item['nama'].toLowerCase().contains(_searchQuery.toLowerCase());
+  }
+
+  Future<void> _searchCategories(String query) async {
+    setState(() {
+      _searchQuery = query;
+      _isLoading = true;
+    });
+
+    try {
+      final categories = await TrashCategoryService.searchCategories(query);
+      setState(() {
+        _categories = categories;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal mencari kategori: ${e.toString()}'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+  }
+
+  List<TrashCategory> get _filteredCategories {
+    if (_searchQuery.isEmpty) {
+      return _categories;
+    }
+    return _categories.where((category) {
+      return category.categoryName.toLowerCase().contains(_searchQuery.toLowerCase());
     }).toList();
   }
 
@@ -86,9 +143,7 @@ class _KategoriBarangPageState extends State<KategoriBarangPage> {
                           child: TextField(
                             controller: _searchController,
                             onChanged: (value) {
-                              setState(() {
-                                _searchQuery = value;
-                              });
+                              _searchCategories(value);
                             },
                             decoration: const InputDecoration(
                               hintText: 'Cari',
@@ -193,7 +248,11 @@ class _KategoriBarangPageState extends State<KategoriBarangPage> {
             ),
 
             Expanded(
-              child: _filteredKategoriBarang.isEmpty && _searchQuery.isNotEmpty
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: cucumberGreen),
+                    )
+                  : _filteredCategories.isEmpty && _searchQuery.isNotEmpty
                   ? Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -214,108 +273,146 @@ class _KategoriBarangPageState extends State<KategoriBarangPage> {
                         ],
                       ),
                     )
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _filteredKategoriBarang.length,
-                      itemBuilder: (context, index) {
-                        final item = _filteredKategoriBarang[index];
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withValues(alpha: 0.1),
-                                spreadRadius: 1,
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: InkWell(
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      DetailKategoriBarangPage(
-                                        kategoriData: item,
-                                      ),
+                  : RefreshIndicator(
+                      onRefresh: _loadCategories,
+                      color: cucumberGreen,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: _filteredCategories.length,
+                        itemBuilder: (context, index) {
+                          final category = _filteredCategories[index];
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.grey.withValues(alpha: 0.1),
+                                  spreadRadius: 1,
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
                                 ),
-                              );
-                            },
-                            borderRadius: BorderRadius.circular(12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Row(
-                                children: [
-                                  Container(
-                                    width: 100,
-                                    height: 100,
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey.shade200,
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: Colors.grey.shade300,
-                                        width: 1,
+                              ],
+                            ),
+                            child: InkWell(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        DetailKategoriBarangPage(
+                                          category: category,
+                                        ),
+                                  ),
+                                );
+                              },
+                              borderRadius: BorderRadius.circular(12),
+                              child: Padding(
+                                padding: const EdgeInsets.all(16),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      width: 100,
+                                      height: 100,
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey.shade200,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                          color: Colors.grey.shade300,
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: category.imageUrl != null
+                                            ? Image.network(
+                                                category.imageUrl!,
+                                                width: 100,
+                                                height: 100,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, error, stackTrace) {
+                                                  return Icon(
+                                                    Icons.image,
+                                                    color: Colors.grey.shade400,
+                                                    size: 24,
+                                                  );
+                                                },
+                                                loadingBuilder: (context, child, loadingProgress) {
+                                                  if (loadingProgress == null) return child;
+                                                  return Center(
+                                                    child: SizedBox(
+                                                      width: 20,
+                                                      height: 20,
+                                                      child: CircularProgressIndicator(
+                                                        color: cucumberGreen,
+                                                        strokeWidth: 2,
+                                                        value: loadingProgress.expectedTotalBytes != null
+                                                            ? loadingProgress.cumulativeBytesLoaded /
+                                                                loadingProgress.expectedTotalBytes!
+                                                            : null,
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              )
+                                            : Icon(
+                                                Icons.image,
+                                                color: Colors.grey.shade400,
+                                                size: 24,
+                                              ),
                                       ),
                                     ),
-                                    child: Icon(
-                                      Icons.image,
-                                      color: Colors.grey.shade400,
-                                      size: 24,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 16),
+                                    const SizedBox(width: 16),
 
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          item['nama'],
-                                          style: const TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.w600,
-                                            color: Colors.black87,
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            category.categoryName,
+                                            style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600,
+                                              color: Colors.black87,
+                                            ),
                                           ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          item['harga'],
-                                          style: const TextStyle(
-                                            fontSize: 14,
-                                            color: cucumberGreen,
-                                            fontWeight: FontWeight.w500,
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            category.formattedPrice,
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              color: cucumberGreen,
+                                              fontWeight: FontWeight.w500,
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                  ),
 
-                                  // Detail button
-                                  Text(
-                                    'Detail',
-                                    style: TextStyle(
-                                      fontSize: 14,
+                                    // Detail button
+                                    Text(
+                                      'Detail',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.grey.shade600,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      Icons.arrow_forward_ios,
+                                      size: 14,
                                       color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.w500,
                                     ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Icon(
-                                    Icons.arrow_forward_ios,
-                                    size: 14,
-                                    color: Colors.grey.shade600,
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
             ),
           ],
