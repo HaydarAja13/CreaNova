@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:myapp/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 
 import '../../auth_service.dart';
 import '../../models/article_item.dart';
@@ -34,16 +32,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final _repo = UserRepository();
 
   late Future<Map<String, dynamic>> _profileDataFuture;
-  // Dynamic bank sites fetched from backend
-  List<BankSite> _sites = [];
-  bool _sitesLoading = true;
-  String? _sitesError;
 
   @override
   void initState() {
     super.initState();
     _profileDataFuture = _repo.getProfile();
-    _loadSites();
   }
 
   Future<void> _handleRefresh() async {
@@ -54,61 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
         _profileDataFuture = _repo.getProfile();
       });
     }
-    await _loadSites();
-  }
-
-  Future<void> _loadSites() async {
-    setState(() {
-      _sitesLoading = true;
-      _sitesError = null;
-    });
-    try {
-      final uri = Uri.parse('https://well-pelican-real.ngrok-free.app/api/users');
-      final res = await http.get(uri);
-      if (res.statusCode != 200) {
-        throw Exception('HTTP ${res.statusCode}');
-      }
-      final data = jsonDecode(res.body);
-      final List list = data is List ? data : (data['data'] as List? ?? const []);
-      final items = <BankSite>[];
-      for (final raw in list) {
-        final map = raw as Map<String, dynamic>;
-        final lat = _toDouble(map['bankLat']);
-        final lng = _toDouble(map['bankLng']);
-        final address = (map['bankAddress'] ?? '').toString();
-        final name = (map['name'] ?? 'Lokasi').toString();
-        if (lat != null && lng != null) {
-          items.add(BankSite(
-            name: name,
-            address: address.isEmpty ? 'Alamat belum tersedia' : address,
-            hours: '08.00 - 17.00',
-            lat: lat,
-            lng: lng,
-            imageUrl: (map['avatar_url'] ?? map['photoUrl'] ?? 'https://picsum.photos/seed/${name.hashCode}/800/600').toString(),
-          ));
-        }
-      }
-      if (!mounted) return;
-      setState(() {
-        _sites = items;
-        _sitesLoading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _sitesError = 'Gagal memuat lokasi: $e';
-        _sitesLoading = false;
-        _sites = [];
-      });
-    }
-  }
-
-  double? _toDouble(dynamic v) {
-    if (v == null) return null;
-    if (v is num) return v.toDouble();
-    final s = v.toString();
-    if (s.isEmpty) return null;
-    return double.tryParse(s.replaceAll(',', '.'));
   }
 
   @override
@@ -118,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final bottomSafe = MediaQuery.of(context).padding.bottom;
     final spacer = bottomSafe + kBarHeight + kFabDiameter * 0.2;
 
-    final sites = _sites.isNotEmpty ? _sites : const [
+    final sites = const [
       BankSite(
         name: 'BS. Omah Resik',
         address: 'Jl. Ulin Selatan VI No.114, Padangsari',
@@ -328,22 +266,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.assignment_return,
                         label: 'Setor Langsung',
                         onTap: () async {
-                          if (_sitesLoading) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Memuat lokasi bank...')),
-                            );
-                            return;
-                          }
-                          if (sites.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text(_sitesError ?? 'Data bank tidak tersedia')),
-                            );
-                            return;
-                          }
                           final chosen = await Navigator.of(context).push<BankSite>(
                             MaterialPageRoute(
                               builder: (_) => NearestBankMapScreen(
-                                sites: sites,
+                                sites:
+                                    sites, // <-- pakai daftar bank yang sudah kamu definisikan di atas
+                                // selected: sites.first // (opsional) preselect
                               ),
                             ),
                           );
@@ -360,7 +288,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             )) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                  content: Text('Tidak bisa membuka Google Maps'),
+                                  content: Text(
+                                    'Tidak bisa membuka Google Maps',
+                                  ),
                                 ),
                               );
                             }
@@ -408,38 +338,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const _SectionTitle('Bank Sampah Terdekat'),
                   const SizedBox(height: 10),
-                  if (_sitesLoading)
-                    const SizedBox(
-                      height: 160,
-                      child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                    )
-                  else if (sites.isEmpty)
-                    SizedBox(
-                      height: 160,
-                      child: Center(
-                        child: Text(
-                          _sitesError ?? 'Tidak ada data bank tersedia',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                      ),
-                    )
-                  else
-                    FutureBuilder<BankSite?>(
-                      future: findNearest(sites),
-                      builder: (context, snap) {
-                        if (snap.connectionState == ConnectionState.waiting) {
-                          return const SizedBox(
-                            height: 160,
-                            child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                          );
-                        }
-                        final nearest = snap.data ?? sites.first; // fallback
-                        return BankCard(
-                          site: nearest,
-                          staticMapsApiKey: AppConfig.googleStaticMapsKey,
+                  FutureBuilder<BankSite?>(
+                    future: findNearest(
+                      sites,
+                    ), // fungsi opsional yang aku kasih sebelumnya
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 160,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         );
-                      },
-                    ),
+                      }
+                      final nearest = snap.data ?? sites.first; // fallback
+                      return BankCard(
+                        site: nearest,
+                        staticMapsApiKey: AppConfig.googleStaticMapsKey,
+                      );
+                    },
+                  ),
                 ],
               ),
             ),
