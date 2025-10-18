@@ -7,6 +7,8 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../auth_service.dart';
 import '../../models/article_item.dart';
 import '../../services/user_repository.dart';
+import '../../services/bank_service.dart';
+import '../../services/article_service.dart';
 import '../../widgets/article_carousel.dart';
 import '../../widgets/bank_card.dart';
 import '../../models/bank_site.dart';
@@ -32,11 +34,15 @@ class _HomeScreenState extends State<HomeScreen> {
   final _repo = UserRepository();
 
   late Future<Map<String, dynamic>> _profileDataFuture;
+  late Future<List<BankSite>> _banksFuture;
+  late Future<List<ArticleItem>> _articlesFuture;
 
   @override
   void initState() {
     super.initState();
     _profileDataFuture = _repo.getProfile();
+    _banksFuture = BankService.getAllBanks();
+    _articlesFuture = ArticleService.getAllArticles();
   }
 
   Future<void> _handleRefresh() async {
@@ -45,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() {
         _profileDataFuture = _repo.getProfile();
+        _banksFuture = BankService.getAllBanks();
+        _articlesFuture = ArticleService.getAllArticles();
       });
     }
   }
@@ -55,25 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
     const kFabDiameter = 64.0;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
     final spacer = bottomSafe + kBarHeight + kFabDiameter * 0.2;
-
-    final sites = const [
-      BankSite(
-        name: 'BS. Omah Resik',
-        address: 'Jl. Ulin Selatan VI No.114, Padangsari',
-        hours: '09.00 - 16.00',
-        lat: -7.0563,
-        lng: 110.4390,
-        imageUrl: 'https://picsum.photos/id/1011/1200/800',
-      ),
-      BankSite(
-        name: 'BS. Tembalang',
-        address: 'Jl. Pembangunan…',
-        hours: '08.00 - 17.00',
-        lat: -7.0580,
-        lng: 110.4452,
-        imageUrl: 'https://picsum.photos/id/1015/1200/800',
-      ),
-    ];
 
     final user = authService.value.currentUser;
     final name = user?.displayName;
@@ -266,15 +255,16 @@ class _HomeScreenState extends State<HomeScreen> {
                         icon: Icons.assignment_return,
                         label: 'Setor Langsung',
                         onTap: () async {
-                          final chosen = await Navigator.of(context).push<BankSite>(
-                            MaterialPageRoute(
-                              builder: (_) => NearestBankMapScreen(
-                                sites:
-                                    sites, // <-- pakai daftar bank yang sudah kamu definisikan di atas
-                                // selected: sites.first // (opsional) preselect
-                              ),
-                            ),
-                          );
+                          // Get banks from API
+                          final banks = await _banksFuture;
+
+                          final chosen = await Navigator.of(context)
+                              .push<BankSite>(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      NearestBankMapScreen(sites: banks),
+                                ),
+                              );
 
                           if (chosen != null && mounted) {
                             // untuk "Setor Langsung": buka Google Maps turn-by-turn ke bank terpilih
@@ -338,10 +328,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const _SectionTitle('Bank Sampah Terdekat'),
                   const SizedBox(height: 10),
-                  FutureBuilder<BankSite?>(
-                    future: findNearest(
-                      sites,
-                    ), // fungsi opsional yang aku kasih sebelumnya
+                  FutureBuilder<List<BankSite>>(
+                    future: _banksFuture,
                     builder: (context, snap) {
                       if (snap.connectionState == ConnectionState.waiting) {
                         return const SizedBox(
@@ -351,10 +339,86 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         );
                       }
-                      final nearest = snap.data ?? sites.first; // fallback
-                      return BankCard(
-                        site: nearest,
-                        staticMapsApiKey: AppConfig.googleStaticMapsKey,
+
+                      if (snap.hasError) {
+                        return Container(
+                          height: 160,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red.shade600,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Gagal memuat data bank sampah',
+                                  style: TextStyle(color: Colors.red.shade600),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 4),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _banksFuture = BankService.getAllBanks();
+                                    });
+                                  },
+                                  child: const Text('Coba Lagi'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final banks = snap.data ?? [];
+                      if (banks.isEmpty) {
+                        return Container(
+                          height: 160,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.location_off,
+                                  color: Colors.grey,
+                                  size: 32,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Belum ada bank sampah tersedia',
+                                  style: TextStyle(color: Colors.grey),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      return FutureBuilder<BankSite?>(
+                        future: findNearest(banks),
+                        builder: (context, nearestSnap) {
+                          final nearest = nearestSnap.data ?? banks.first;
+                          return BankCard(
+                            site: nearest,
+                            staticMapsApiKey: AppConfig.googleStaticMapsKey,
+                          );
+                        },
                       );
                     },
                   ),
@@ -383,37 +447,99 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  ArticleCarousel(
-                    items: const [
-                      ArticleItem(
-                        id: 'a1',
-                        title:
-                            'Semarang Bersih Sukses Membentuk 1.074 Bank Sampah P…',
-                        date: '1 Agustus 2025',
-                        source: 'TukarIn',
-                        imageUrl: 'https://picsum.photos/id/1011/1200/800',
-                        isNew: true,
-                      ),
-                      ArticleItem(
-                        id: 'a2',
-                        title:
-                            'Panduan Pilah Sampah Plastik di Rumah yang Praktis',
-                        date: '29 Juli 2025',
-                        source: 'TukarIn',
-                        imageUrl: 'https://picsum.photos/id/1015/1200/800',
-                      ),
-                      ArticleItem(
-                        id: 'a3',
-                        title:
-                            'Cerita Bank Sampah Warga: Dari Nol Jadi Mandiri',
-                        date: '25 Juli 2025',
-                        source: 'TukarIn',
-                        imageUrl: 'https://picsum.photos/id/1021/1200/800',
-                      ),
-                    ],
-                    onTap: (item) {
-                      // TODO: buka halaman detail artikel / route dengan item.id/link
-                      // Navigator.pushNamed(context, '/article', arguments: item);
+                  FutureBuilder<List<ArticleItem>>(
+                    future: _articlesFuture,
+                    builder: (context, snap) {
+                      if (snap.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 200,
+                          child: Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                        );
+                      }
+
+                      if (snap.hasError) {
+                        return Container(
+                          height: 200,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.error_outline,
+                                  color: Colors.red.shade600,
+                                  size: 32,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Gagal memuat artikel',
+                                  style: TextStyle(color: Colors.red.shade600),
+                                  textAlign: TextAlign.center,
+                                ),
+                                const SizedBox(height: 4),
+                                TextButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _articlesFuture =
+                                          ArticleService.getAllArticles();
+                                    });
+                                  },
+                                  child: const Text('Coba Lagi'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      final articles = snap.data ?? [];
+                      if (articles.isEmpty) {
+                        return Container(
+                          height: 200,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.article_outlined,
+                                  color: Colors.grey,
+                                  size: 32,
+                                ),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Belum ada artikel tersedia',
+                                  style: TextStyle(color: Colors.grey),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      }
+
+                      // Take only first 3 articles for home screen
+                      final displayArticles = articles.take(3).toList();
+
+                      return ArticleCarousel(
+                        items: displayArticles,
+                        onTap: (item) {
+                          // TODO: buka halaman detail artikel / route dengan item.id/link
+                          // Navigator.pushNamed(context, '/article', arguments: item);
+                        },
+                      );
                     },
                   ),
                 ],
