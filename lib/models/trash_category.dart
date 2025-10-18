@@ -27,12 +27,22 @@ class TrashCategory {
   });
 
   factory TrashCategory.fromJson(Map<String, dynamic> json) {
+    // Helper function to parse int from string or int
+    int parseIntField(dynamic value) {
+      if (value is int) return value;
+      if (value is String) {
+        if (value.isEmpty) return 0;
+        return int.tryParse(value) ?? 0;
+      }
+      return 0;
+    }
+
     return TrashCategory(
       id: json['id'] as int,
       categoryName: json['category_name'] as String,
       point: json['point'] as int,
-      stock: json['stock'] as int,
-      totalBalance: json['total_balance'] as int,
+      stock: parseIntField(json['stock']),
+      totalBalance: parseIntField(json['total_balance']),
       status: json['status'] as String,
       image: json['image'] as String?,
       imageUrl: json['image_url'] as String?,

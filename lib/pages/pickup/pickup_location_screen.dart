@@ -6,11 +6,13 @@ import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import '../../app_config.dart';
 import '../../models/bank_site.dart';
+import '../../services/bank_service.dart';
 import '../main_features/maps/nearest_finder.dart';
 
 class PickupLocationScreen extends StatefulWidget {
@@ -25,7 +27,6 @@ class PickupLocationScreen extends StatefulWidget {
 
 class _PickupLocationScreenState extends State<PickupLocationScreen> {
   final _db = FirebaseFirestore.instance;
-
   GoogleMapController? _map;
 
   Map<String, dynamic>? _profile;
@@ -33,6 +34,8 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
 
   BankSite? _nearest;
   BankSite? _selected;
+  List<BankSite> _sites = [];
+  bool _isLoadingBanks = true;
 
   // icons with safe fallbacks
   BitmapDescriptor? _userIcon;
@@ -42,24 +45,6 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
   // cached route
   LatLng? _routeFrom, _routeTo;
   List<LatLng> _routePts = [];
-
-  // contoh data bank (ganti dari backend bila perlu)
-  final _sites = const [
-    BankSite(
-      name: 'BS. Omah Resik',
-      address: 'Jl. Ulin Selatan VI No.114, Padangsari',
-      hours: '09.00 - 16.00',
-      lat: -7.0563, lng: 110.4390,
-      imageUrl: 'https://picsum.photos/id/1011/800/600',
-    ),
-    BankSite(
-      name: 'BS. Tembalang',
-      address: 'Jl. Pembangunan…',
-      hours: '08.00 - 17.00',
-      lat: -7.0580, lng: 110.4452,
-      imageUrl: 'https://picsum.photos/id/1015/800/600',
-    ),
-  ];
 
   @override
   void initState() {
@@ -76,20 +61,53 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
   Future<void> _init() async {
     await _loadIcons();
     await _loadMe();
+    await _loadBanks();
 
-    if (_userLatLng != null) {
+    if (_userLatLng != null && _sites.isNotEmpty) {
       _nearest = await findNearest(_sites);
       _selected = _nearest;
 
       // langsung tarik rute & fit ke bounds
-      unawaited(_ensureRoute(
-        _userLatLng!,
-        LatLng(_selected!.lat, _selected!.lng),
-        fitAfterDecode: true,
-      ));
+      if (_selected != null) {
+        unawaited(_ensureRoute(
+          _userLatLng!,
+          LatLng(_selected!.lat, _selected!.lng),
+          fitAfterDecode: true,
+        ));
+      }
     }
     if (mounted) setState(() {});
   }
+
+  Future<void> _loadBanks() async {
+    setState(() {
+      _isLoadingBanks = true;
+    });
+
+    try {
+      final banks = await BankService.getAllBanks();
+      setState(() {
+        _sites = banks;
+        _isLoadingBanks = false;
+      });
+      debugPrint('Loaded ${banks.length} banks from API');
+    } catch (e) {
+      setState(() {
+        _isLoadingBanks = false;
+      });
+      debugPrint('Error loading banks: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal memuat data bank sampah: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+
 
   Future<void> _loadMe() async {
     final uid = FirebaseAuth.instance.currentUser!.uid;
@@ -325,7 +343,7 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(24),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 12, offset: Offset(0, 4))],
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 12, offset: const Offset(0, 4))],
                   ),
                   child: Row(
                     children: [
@@ -354,7 +372,26 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (_selected != null && hasUser)
+                  if (_isLoadingBanks)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          SizedBox(width: 12),
+                          Text('Memuat bank sampah...'),
+                        ],
+                      ),
+                    )
+                  else if (_selected != null && hasUser)
                     _NearestBankTile(
                       site: _selected!,
                       distanceKm: _distanceKm(
@@ -377,7 +414,7 @@ class _PickupLocationScreenState extends State<PickupLocationScreen> {
                         backgroundColor: PickupLocationScreen.kGreen,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
-                      onPressed: (hasUser && _selected != null)
+                      onPressed: (hasUser && _selected != null && !_isLoadingBanks)
                           ? () {
                         Navigator.pushNamed(
                           context,
@@ -456,7 +493,7 @@ class _NearestBankTile extends StatelessWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.55),
+                          color: Colors.black.withValues(alpha: 0.55),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(

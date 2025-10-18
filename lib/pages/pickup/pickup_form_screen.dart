@@ -5,12 +5,15 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http; // <-- IMPORT BARU
 import 'package:path/path.dart' as p;     // <-- IMPORT BARU
 
 import '../../models/pickup_order.dart';
 import '../../models/bank_site.dart';
+import '../../models/trash_category.dart';
+import '../../services/trash_category_service.dart';
 
 class PickupFormScreen extends StatefulWidget {
   const PickupFormScreen({super.key});
@@ -101,10 +104,9 @@ class _SubmitSuccessSheet extends StatelessWidget {
   }
 }
 
-// Pricing cache: type -> {coefPoints, minKg, maxKg}
-Map<String, Map<String, num>> _pricing = {};
-bool _pricingLoaded = false;
-final List<String> _defaultTypes = const ['Botol Plastik', 'Kardus', 'Kertas'];
+// Trash categories from API
+List<TrashCategory> _trashCategories = [];
+bool _categoriesLoaded = false;
 
 class _PickupFormScreenState extends State<PickupFormScreen> {
   final _db = FirebaseFirestore.instance;
@@ -120,8 +122,6 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
   String _slotKeyFromTimeslot(BankSite bank, String timeslot) {
     // contoh timeslot: "Jum, 18 Okt 09:00 - 10:00"
     // jadi kunci: 2025-10-18_09:00__Bank_Omah_Resik
-    final re = RegExp(r'(\d{1,2})\s+([A-Za-zA-Z]+)\s+(\d{4}).*?(\d{2}:\d{2})');
-    // Kalau format timeslot kamu beda, kamu bisa langsung pakai replaceAll:
     final safeBank = bank.name.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '_');
     final safeSlot = timeslot.replaceAll(RegExp(r'[^0-9A-Za-z:_-]+'), '_');
     return '${safeSlot}__$safeBank';
@@ -163,42 +163,75 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
       if (bank != null) {
         // ... generate slots di sini kalau kamu sudah implement
       }
-      // >>> Load pricing
-      await _loadPricing();
+      // >>> Load trash categories from API
+      await _loadTrashCategories();
     });
   }
 
-  Future<void> _loadPricing() async {
+  Future<void> _loadTrashCategories() async {
     try {
-      final snap = await _db.collection('waste_pricings').get();
-      final map = <String, Map<String, num>>{};
-      for (final d in snap.docs) {
-        final m = d.data();
-        map[d.id] = {
-          'coefPoints': (m['coefPoints'] as num?) ?? 50, // default 50 pts/kg
-          'minKg': (m['minKg'] as num?) ?? 0,
-          'maxKg': (m['maxKg'] as num?) ?? 999,
-        };
-      }
+      debugPrint('Loading trash categories from API...');
+      final categories = await TrashCategoryService.getAllCategories();
       if (mounted) {
         setState(() {
-          _pricing = map;
-          _pricingLoaded = true;
+          _trashCategories = categories;
+          _categoriesLoaded = true;
+        });
+        debugPrint('Loaded ${categories.length} trash categories');
+      }
+    } catch (e) {
+      debugPrint('Error loading trash categories: $e');
+      // Use fallback categories if API fails
+      if (mounted) {
+        setState(() {
+          _trashCategories = [
+            TrashCategory(
+              id: 1,
+              categoryName: 'Botol Plastik',
+              point: 50,
+              stock: 100,
+              totalBalance: 1000,
+              status: 'T',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            TrashCategory(
+              id: 2,
+              categoryName: 'Kardus',
+              point: 75,
+              stock: 200,
+              totalBalance: 1500,
+              status: 'T',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+            TrashCategory(
+              id: 3,
+              categoryName: 'Kertas',
+              point: 50,
+              stock: 150,
+              totalBalance: 800,
+              status: 'T',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            ),
+          ];
+          _categoriesLoaded = true;
         });
       }
-    } catch (_) {
-      // tetap pakai fallback tanpa crash
-      if (mounted) setState(() => _pricingLoaded = true);
     }
   }
 
-  int _calcPoints(String type, double kg) {
-    final rule = _pricing[type];
-    final coef = (rule?['coefPoints'] ?? 50).toDouble();
-    final minKg = (rule?['minKg'] ?? 0).toDouble();
-    final maxKg = (rule?['maxKg'] ?? 999).toDouble();
-    final clamped = kg.clamp(minKg, maxKg);
-    return (clamped * coef).round();
+  int _calcPoints(String categoryName, double kg) {
+    try {
+      final category = _trashCategories.firstWhere(
+        (cat) => cat.categoryName == categoryName,
+      );
+      return (kg * category.point).round();
+    } catch (e) {
+      // Fallback calculation if category not found
+      return (kg * 50).round(); // Default 50 points per kg
+    }
   }
 
   @override
@@ -210,13 +243,17 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
   }
 
   void _addItem() async {
-    // jenis = key dari pricing; fallback ke default types jika pricing kosong
-    final types = _pricing.isNotEmpty ? _pricing.keys.toList() : _defaultTypes;
+    if (!_categoriesLoaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sedang memuat kategori sampah...')),
+      );
+      return;
+    }
 
     final res = await showDialog<WasteItem>(
       context: context,
       builder: (_) => _AddWasteItemDialog(
-        types: types,
+        categories: _trashCategories,
         calcPoints: _calcPoints,
       ),
     );
@@ -602,9 +639,17 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
       height: 50,
       width: double.infinity,
       child: OutlinedButton.icon(
-        onPressed: _addItem,
-        icon: const Icon(Icons.add),
-        label: const Text('Tambahkan Jenis Sampah'),
+        onPressed: _categoriesLoaded ? _addItem : null,
+        icon: _categoriesLoaded 
+            ? const Icon(Icons.add)
+            : const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+        label: Text(_categoriesLoaded 
+            ? 'Tambahkan Jenis Sampah'
+            : 'Memuat Kategori...'),
         style: OutlinedButton.styleFrom(
           foregroundColor: PickupFormScreen.kGreen,
           side: const BorderSide(color: PickupFormScreen.kGreen),
@@ -674,9 +719,9 @@ class _PickupFormScreenState extends State<PickupFormScreen> {
 // ==== DIALOG & HELPER WIDGETS ====
 
 class _AddWasteItemDialog extends StatefulWidget {
-  final List<String> types;
-  final int Function(String type, double kg) calcPoints;
-  const _AddWasteItemDialog({required this.types, required this.calcPoints});
+  final List<TrashCategory> categories;
+  final int Function(String categoryName, double kg) calcPoints;
+  const _AddWasteItemDialog({required this.categories, required this.calcPoints});
 
   @override
   State<_AddWasteItemDialog> createState() => _AddWasteItemDialogState();
@@ -684,12 +729,12 @@ class _AddWasteItemDialog extends StatefulWidget {
 
 class _AddWasteItemDialogState extends State<_AddWasteItemDialog> {
   final _weightC = TextEditingController(text: '1.0');
-  late String _selectedType;
+  TrashCategory? _selectedCategory;
 
   @override
   void initState() {
     super.initState();
-    _selectedType = widget.types.isNotEmpty ? widget.types.first : 'Lainnya';
+    _selectedCategory = widget.categories.isNotEmpty ? widget.categories.first : null;
   }
 
   @override
@@ -700,19 +745,25 @@ class _AddWasteItemDialogState extends State<_AddWasteItemDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final types = widget.types.isNotEmpty ? widget.types : ['Lainnya'];
     final weight = double.tryParse(_weightC.text) ?? 0.0;
-    final previewPts = weight > 0 ? widget.calcPoints(_selectedType, weight) : 0;
+    final previewPts = weight > 0 && _selectedCategory != null 
+        ? widget.calcPoints(_selectedCategory!.categoryName, weight) 
+        : 0;
 
     return AlertDialog(
       title: const Text('Tambah Jenis Sampah'),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          DropdownButtonFormField<String>(
-            value: _selectedType,
-            items: types.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-            onChanged: (v) => setState(() => _selectedType = v ?? _selectedType),
+          DropdownButtonFormField<TrashCategory>(
+            value: _selectedCategory,
+            items: widget.categories.map((category) => 
+              DropdownMenuItem(
+                value: category, 
+                child: Text(category.categoryName),
+              ),
+            ).toList(),
+            onChanged: (v) => setState(() => _selectedCategory = v),
             decoration: const InputDecoration(border: OutlineInputBorder()),
           ),
           const SizedBox(height: 16),
@@ -736,10 +787,25 @@ class _AddWasteItemDialogState extends State<_AddWasteItemDialog> {
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
         ElevatedButton(
           onPressed: () {
+            if (_selectedCategory == null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Pilih kategori sampah terlebih dahulu')),
+              );
+              return;
+            }
             final w = double.tryParse(_weightC.text) ?? 0;
-            if (w <= 0) return;
-            final pts = widget.calcPoints(_selectedType, w);
-            final newItem = WasteItem(name: _selectedType, weightKg: w, points: pts);
+            if (w <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Masukkan berat yang valid')),
+              );
+              return;
+            }
+            final pts = widget.calcPoints(_selectedCategory!.categoryName, w);
+            final newItem = WasteItem(
+              name: _selectedCategory!.categoryName, 
+              weightKg: w, 
+              points: pts,
+            );
             Navigator.pop(context, newItem);
           },
           child: const Text('Tambah'),
@@ -773,7 +839,7 @@ class _WasteListItem extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text('Perkiraan: ${item.weightKg.toStringAsFixed(1)} Kg', style: const TextStyle(color: Colors.black54, fontSize: 13)),
                   Text(
-                    'Poin: ${item.points} Rupiah',
+                    'Saldo: ${item.points} Rupiah',
                     style: const TextStyle(color: PickupFormScreen.kGreen, fontSize: 13, fontWeight: FontWeight.w600),
                   ),
                 ],
