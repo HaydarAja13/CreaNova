@@ -192,7 +192,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     switch (s) {
       case 'delivered':
       case 'cancelled':
-      case 'done':
+      case 'verified':
         return _Status.done;
       case 'requested':
       case 'assigned':

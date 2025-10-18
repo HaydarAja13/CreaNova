@@ -1,11 +1,18 @@
 // lib/tukarin_screen.dart
+import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 import '../../models/bank_site.dart';
-import '../../app_config.dart';
+import '../pickup/pickup_location_screen.dart';
 
 class TukarInScreen extends StatefulWidget {
   const TukarInScreen({super.key});
@@ -19,116 +26,125 @@ class _TukarInScreenState extends State<TukarInScreen> {
   static const kBg    = Color(0xFFFAFAFA);
   static const kText  = Color(0xFF0B1215);
 
-  // ---- data dummy awal (ganti ke data backendmu) ----
-  final List<BankSite> _allSites = const [
-    BankSite(
-      name: 'Bank Sampah Omah Resik',
-      address: 'Jl. Ulin Selatan VI No.114, Padangsari',
-      hours: '09.00 - 16.00',
-      lat: -7.0563, lng: 110.4390,
-      imageUrl: 'https://picsum.photos/id/1011/1200/800'
-    ),
-    BankSite(
-      name: 'Bank Sampah Umbulrejo',
-      address: 'Jl. Umbulrejo No. 2',
-      hours: '08.00 - 17.00',
-      lat: -7.0590, lng: 110.4445,
-      imageUrl: 'https://picsum.photos/id/1015/1200/800'
-    ),
-    BankSite(
-      name: 'Bank Sampah Ngudi Lestari',
-      address: 'Jl. Ngudi Lestari',
-      hours: '08.00 - 16.00',
-      lat: -7.0505, lng: 110.4480,
-      imageUrl: 'https://picsum.photos/id/1021/1200/800'
-    ),
-  ];
+  // ---- dynamic sites from backend ----
+  List<BankSite> _allSites = [];
+  bool _sitesLoading = true;
+  String? _sitesError;
 
   // ---- state ----
+  final _searchC = TextEditingController();
+  Timer? _debounce;
   String _query = '';
   Position? _pos;
-  BankSite? _highlight;   // yang sedang dipilih/terdekat
-  double _zoom = 14;      // kamu bisa naikkan/turunkan
+  BankSite? _selected;
+
+  GoogleMapController? _map;
+  CameraPosition _initialCam = const CameraPosition(
+    target: LatLng(-7.0563, 110.4390), // fallback Semarang-ish
+    zoom: 14,
+  );
+
+  // marker icons (with safe fallbacks)
+  BitmapDescriptor? _userIcon;
+  BitmapDescriptor? _bankIcon;
+  BitmapDescriptor? _bankSelIcon;
 
   @override
   void initState() {
     super.initState();
+    _searchC.addListener(_onSearchChanged);
+    _loadIcons();
     _initLocation();
+    _fetchSites();
   }
 
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchC.dispose();
+    _map?.dispose();
+    super.dispose();
+  }
+
+  // ---------- Icons ----------
+  Future<BitmapDescriptor> _bitmapFromAsset(String path, {int width = 84}) async {
+    final data = await rootBundle.load(path);
+    final codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: width,
+    );
+    final fi = await codec.getNextFrame();
+    final bytes = (await fi.image.toByteData(format: ui.ImageByteFormat.png))!;
+    return BitmapDescriptor.fromBytes(bytes.buffer.asUint8List());
+  }
+
+  Future<void> _loadIcons() async {
+    // fallbacks first
+    _userIcon    = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
+    _bankIcon    = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+    _bankSelIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+
+    try { _userIcon    = await _bitmapFromAsset('assets/icons/user_pin.png', width: 96); } catch (_) {}
+    try { _bankIcon    = await _bitmapFromAsset('assets/icons/bank_pin.png', width: 96); } catch (_) {}
+    try { _bankSelIcon = await _bitmapFromAsset('assets/icons/bank_pin_selected.png', width: 96); } catch (_) {}
+
+    if (mounted) setState(() {});
+  }
+
+  // ---------- Location & camera ----------
   Future<void> _initLocation() async {
     try {
-      final perm = await Geolocator.checkPermission();
+      var perm = await Geolocator.checkPermission();
       if (perm == LocationPermission.denied) {
-        await Geolocator.requestPermission();
+        perm = await Geolocator.requestPermission();
       }
-      if (await Geolocator.isLocationServiceEnabled()) {
-        final p = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
+      if (perm == LocationPermission.deniedForever) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Izin lokasi ditolak permanen. Buka pengaturan.')),
         );
-        setState(() => _pos = p);
-        _pickNearest();
+        await Geolocator.openAppSettings();
+        return;
+      }
+
+      if (await Geolocator.isLocationServiceEnabled()) {
+        final p = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+        _pos = p;
+        _selected ??= _nearestTo(p.latitude, p.longitude);
+        _initialCam = CameraPosition(target: LatLng(p.latitude, p.longitude), zoom: 15);
+        if (mounted) setState(() {});
+        // optionally pan camera if already created
+        _map?.animateCamera(CameraUpdate.newCameraPosition(_initialCam));
+      } else {
+        if (_allSites.isNotEmpty) {
+          _selected ??= _allSites.first;
+        }
       }
     } catch (_) {
-      // tetap jalan dengan center default kalau gagal izin
-    }
-  }
-
-  void _pickNearest() {
-    if (_pos == null) return;
-    BankSite? best;
-    double bestDist = double.infinity;
-    for (final s in _allSites) {
-      final d = Geolocator.distanceBetween(
-        _pos!.latitude, _pos!.longitude, s.lat, s.lng,
-      );
-      if (d < bestDist) {
-        bestDist = d;
-        best = s;
+      if (_allSites.isNotEmpty) {
+        _selected ??= _allSites.first;
       }
     }
-    setState(() => _highlight = best);
   }
 
-  // Bangun URL Static Maps (multi-marker), marker terpilih hijau
-  String _buildStaticMapUrl() {
-    // center: lokasi user jika ada, kalau tidak pakai site pertama
-    final clat = _pos?.latitude  ?? _allSites.first.lat;
-    final clng = _pos?.longitude ?? _allSites.first.lng;
-
-    final params = <String, String>{
-      'center': '$clat,$clng',
-      'zoom': _zoom.toStringAsFixed(0),
-      'size': '800x1000', // besar → tajam; widget akan scale down
-      'scale': '2',
-      'maptype': 'roadmap',
-      'key': AppConfig.googleStaticMapsKey,
-    };
-
-    // marker user (biru)
-    final markers = <String>[
-      'color:blue|label:U|$clat,$clng',
-    ];
-
-    // marker bank sampah
-    for (final s in _filteredSites()) {
-      final isHi = _highlight?.name == s.name;
-      final color = isHi ? 'green' : 'red';
-      // label 1 huruf
-      final label = s.name.isNotEmpty ? s.name[0].toUpperCase() : 'B';
-      markers.add('color:$color|label:$label|${s.lat},${s.lng}');
+  BankSite? _nearestTo(double lat, double lng) {
+    if (_allSites.isEmpty) return null;
+    BankSite best = _allSites.first;
+    double bestD = double.infinity;
+    for (final s in _allSites) {
+      final d = Geolocator.distanceBetween(lat, lng, s.lat, s.lng);
+      if (d < bestD) { bestD = d; best = s; }
     }
+    return best;
+  }
 
-    // gabung markers; untuk Static Maps, param markers diulang-ulang
-    final markerParams = markers
-        .map((m) => 'markers=${Uri.encodeQueryComponent(m)}')
-        .join('&');
-
-    final query = params.entries
-        .map((e) => '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}')
-        .join('&');
-
-    return 'https://maps.googleapis.com/maps/api/staticmap?$query&$markerParams';
+  // ---------- Search ----------
+  void _onSearchChanged() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 160), () {
+      if (!mounted) return;
+      setState(() => _query = _searchC.text);
+    });
   }
 
   List<BankSite> _filteredSites() {
@@ -139,21 +155,148 @@ class _TukarInScreenState extends State<TukarInScreen> {
     ).toList();
   }
 
+  // ---- Fetch sites from API ----
+  Future<void> _fetchSites() async {
+    setState(() {
+      _sitesLoading = true;
+      _sitesError = null;
+    });
+    try {
+      final uri = Uri.parse('https://well-pelican-real.ngrok-free.app/api/users');
+      final res = await http.get(uri);
+      if (res.statusCode != 200) {
+        throw Exception('HTTP ${res.statusCode}');
+      }
+      final body = jsonDecode(res.body);
+      final List data = body is List ? body : (body['data'] as List? ?? const []);
+      final items = <BankSite>[];
+      for (final raw in data) {
+        final m = raw as Map<String, dynamic>;
+        final lat = _toDouble(m['bankLat']);
+        final lng = _toDouble(m['bankLng']);
+        if (lat == null || lng == null) continue;
+        final name = (m['name'] ?? 'Lokasi').toString();
+        final address = (m['bankAddress'] ?? '').toString();
+        final imageUrl = (m['avatar_url'] ?? m['photoUrl'] ?? 'https://picsum.photos/seed/${name.hashCode}/800/600').toString();
+        items.add(BankSite(
+          name: name,
+          address: address.isEmpty ? 'Alamat belum tersedia' : address,
+          hours: '08.00 - 17.00',
+          lat: lat,
+          lng: lng,
+          imageUrl: imageUrl,
+        ));
+      }
+      if (!mounted) return;
+      setState(() {
+        _allSites = items;
+        _sitesLoading = false;
+      });
+      // choose nearest if we already have location and none selected
+      if (_pos != null && _selected == null && _allSites.isNotEmpty) {
+        setState(() {
+          _selected = _nearestTo(_pos!.latitude, _pos!.longitude);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _sitesError = 'Gagal memuat lokasi: $e';
+        _sitesLoading = false;
+        _allSites = [];
+      });
+    }
+  }
+
+  double? _toDouble(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    final s = v.toString();
+    if (s.isEmpty) return null;
+    return double.tryParse(s.replaceAll(',', '.'));
+  }
+
+  // ---------- Map helpers ----------
+  Set<Marker> _markers() {
+    final map = <String, Marker>{};
+
+    // user marker (if we have it)
+    if (_pos != null) {
+      const id = 'user';
+      map[id] = Marker(
+        markerId: const MarkerId(id),
+        position: LatLng(_pos!.latitude, _pos!.longitude),
+        infoWindow: const InfoWindow(title: 'Lokasi Anda'),
+        icon: _userIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      );
+    }
+
+    // bank markers
+    for (final s in _filteredSites()) {
+      final id = 'bank_${s.name}';
+      final isSel = _selected?.name == s.name;
+      map[id] = Marker(
+        markerId: MarkerId(id),
+        position: LatLng(s.lat, s.lng),
+        infoWindow: InfoWindow(title: s.name, snippet: s.address),
+        icon: isSel
+            ? (_bankSelIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed))
+            : (_bankIcon ?? BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed)),
+        onTap: () {
+          setState(() => _selected = s);
+        },
+      );
+    }
+
+    return map.values.toSet();
+  }
+
+  Future<void> _focusTo(LatLng target, {double zoom = 16}) async {
+    if (_map == null) return;
+    await _map!.animateCamera(
+      CameraUpdate.newCameraPosition(CameraPosition(target: target, zoom: zoom)),
+    );
+  }
+
+  Future<void> _fitToUserAnd(BankSite s) async {
+    if (_map == null) return;
+    if (_pos == null) {
+      await _focusTo(LatLng(s.lat, s.lng), zoom: 16);
+      return;
+    }
+    final sw = LatLng(
+      math.min(_pos!.latitude, s.lat),
+      math.min(_pos!.longitude, s.lng),
+    );
+    final ne = LatLng(
+      math.max(_pos!.latitude, s.lat),
+      math.max(_pos!.longitude, s.lng),
+    );
+    await _map!.animateCamera(CameraUpdate.newLatLngBounds(LatLngBounds(southwest: sw, northeast: ne), 64));
+  }
+
+  // ---------- External navigation ----------
   Future<void> _openInMaps(BankSite s) async {
-    final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lng}');
+    final name = Uri.encodeComponent(s.name);
+    final base = 'https://www.google.com/maps/dir/?api=1';
+    final dest = '&destination=${s.lat},${s.lng}($name)';
+    final origin = (_pos != null)
+        ? '&origin=${_pos!.latitude},${_pos!.longitude}'
+        : '';
+    final uri = Uri.parse('$base$origin$dest&travelmode=driving');
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
+  // ---------- Build ----------
   @override
   Widget build(BuildContext context) {
     final sites = _filteredSites();
-    // keep in sync with AppShell
+
+    // keep in sync with your shell
     const kBarHeight = 32.0;
     const kFabDiameter = 32.0;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
-    // how high we must float content above the navbar+FAB
     final navSpacer = bottomSafe + kBarHeight + kFabDiameter * 0.2;
-
 
     return SafeArea(
       bottom: false,
@@ -167,20 +310,25 @@ class _TukarInScreenState extends State<TukarInScreen> {
               children: [
                 const Text('TukarIn', style: TextStyle(color: kText, fontSize: 22, fontWeight: FontWeight.w700)),
                 const Spacer(),
-                _SquareIconButton(icon: Icons.local_shipping, onTap: () {}),
+                _SquareIconButton(icon: Icons.local_shipping, onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const PickupLocationScreen()),
+                  );
+                }),
               ],
             ),
             const SizedBox(height: 12),
 
             // ===== Search =====
             _SearchBar(
-              controller: TextEditingController(text: _query),
+              controller: _searchC,
               hint: 'Cari Bank Sampah...',
-              onChanged: (v) => setState(() => _query = v),
+              onChanged: (_) {}, // handled by controller + debounce
             ),
             const SizedBox(height: 12),
 
-            // ===== Map + overlays =====
+            // ===== Map =====
             Expanded(
               child: Padding(
                 padding: EdgeInsets.only(bottom: navSpacer),
@@ -188,17 +336,21 @@ class _TukarInScreenState extends State<TukarInScreen> {
                   borderRadius: BorderRadius.circular(18),
                   child: Stack(
                     children: [
-                      // Static map
                       Positioned.fill(
-                        child: Image.network(
-                          _buildStaticMapUrl(),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              Container(color: const Color(0xFFE8EEE6), child: const Center(child: Text('Map error'))),
+                        child: GoogleMap(
+                          initialCameraPosition: _initialCam,
+                          onMapCreated: (c) => _map = c,
+                          markers: _markers(),
+                          myLocationEnabled: _pos != null, // show blue dot if granted
+                          myLocationButtonEnabled: false,
+                          mapToolbarEnabled: false,
+                          compassEnabled: true,
+                          zoomControlsEnabled: false,
+                          // gestures enabled by default
                         ),
                       ),
 
-                      // Zoom controls
+                      // Zoom & my location
                       Positioned(
                         right: 10,
                         top: 10,
@@ -206,23 +358,27 @@ class _TukarInScreenState extends State<TukarInScreen> {
                           children: [
                             _RoundIcon(
                               icon: Icons.add,
-                              onTap: () => setState(() => _zoom = math.min(20, _zoom + 1)),
+                              onTap: () {
+                                _map?.animateCamera(CameraUpdate.zoomIn());
+                              },
                             ),
                             const SizedBox(height: 8),
                             _RoundIcon(
                               icon: Icons.remove,
-                              onTap: () => setState(() => _zoom = math.max(3, _zoom - 1)),
+                              onTap: () {
+                                _map?.animateCamera(CameraUpdate.zoomOut());
+                              },
                             ),
                             const SizedBox(height: 8),
-                            _RoundIcon(
-                              icon: Icons.my_location,
-                              onTap: _initLocation,
-                            ),
+                            _RoundIcon(icon: Icons.my_location, onTap: () async {
+                              if (_pos == null) { await _initLocation(); return; }
+                              _focusTo(LatLng(_pos!.latitude, _pos!.longitude), zoom: 16);
+                            }),
                           ],
                         ),
                       ),
 
-                      // Bottom sites carousel (chips-list)
+                      // Bottom chips carousel
                       if (sites.isNotEmpty)
                         Positioned(
                           left: 10,
@@ -233,17 +389,24 @@ class _TukarInScreenState extends State<TukarInScreen> {
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               padding: const EdgeInsets.symmetric(horizontal: 2),
+                              itemCount: sites.length,
+                              separatorBuilder: (_, __) => const SizedBox(width: 10),
                               itemBuilder: (_, i) {
                                 final s = sites[i];
-                                final selected = _highlight?.name == s.name;
+                                final selected = _selected?.name == s.name;
                                 return GestureDetector(
-                                  onTap: () => setState(() => _highlight = s),
+                                  onTap: () {
+                                    setState(() => _selected = s);
+                                    _fitToUserAnd(s);
+                                  },
                                   onDoubleTap: () => _openInMaps(s),
-                                  child: _SiteChipCard(site: s, selected: selected, onDirection: () => _openInMaps(s)),
+                                  child: _SiteChipCard(
+                                    site: s,
+                                    selected: selected,
+                                    onDirection: () => _openInMaps(s),
+                                  ),
                                 );
                               },
-                              separatorBuilder: (_, __) => const SizedBox(width: 10),
-                              itemCount: sites.length,
                             ),
                           ),
                         ),
@@ -317,10 +480,10 @@ class _SearchBar extends StatelessWidget {
               child: TextField(
                 controller: controller,
                 onChanged: onChanged,
-                decoration: InputDecoration(
+                decoration: const InputDecoration(
                   border: InputBorder.none,
-                  hintText: hint,
-                  hintStyle: const TextStyle(color: Colors.black45, fontSize: 14.5),
+                  hintText: 'Cari Bank Sampah...',
+                  hintStyle: TextStyle(color: Colors.black45, fontSize: 14.5),
                   isDense: true,
                 ),
               ),
@@ -351,34 +514,38 @@ class _SiteChipCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // MODIFIED: Mengganti Container dengan gambar dari network
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: Image.network(
-              site.imageUrl, // Mengambil URL dari objek site
+              site.imageUrl,
               width: 46,
               height: 46,
-              fit: BoxFit.cover, // Memastikan gambar mengisi area
-              // Widget yang tampil saat gambar sedang di-load
+              fit: BoxFit.cover,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) return child;
                 return Container(
-                  width: 46,
-                  height: 46,
+                  width: 46, height: 46,
                   color: const Color(0xFFEFF4ED),
                   child: const Center(
-                    child: CircularProgressIndicator(strokeWidth: 2.0),
+                    child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                 );
               },
+              errorBuilder: (_, __, ___) => Container(
+                width: 46, height: 46,
+                color: const Color(0xFFEFF4ED),
+                child: const Icon(Icons.photo, color: Colors.black38),
+              ),
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-              Text(site.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, color: _TukarInScreenState.kText)),
+              Text(site.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: _TukarInScreenState.kText)),
               const SizedBox(height: 2),
-              Text(site.address, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.black54, fontSize: 12)),
+              Text(site.address, maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.black54, fontSize: 12)),
             ]),
           ),
           const SizedBox(width: 8),
