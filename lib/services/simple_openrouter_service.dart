@@ -32,7 +32,7 @@ class SimpleOpenRouterService {
             'model': model,
             'messages': [
               {
-                'role': 'system',
+                'role': 'system',   
                 'content': 'Kamu adalah asisten AI yang membantu dengan pertanyaan seputar pengelolaan sampah, lingkungan, dan kebersihan. Jawab dengan bahasa Indonesia yang ramah dan informatif. Berikan jawaban yang singkat dan praktis. Nama user adalah $userName, jadi kamu bisa menyapa dengan nama tersebut jika diperlukan.'
               },
               {

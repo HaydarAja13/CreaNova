@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../models/article_item.dart';
 
 class ArticleService {
-  // Static data untuk sementara - bisa diganti dengan API call
-  static final List<ArticleItem> _articles = [
+  static const String _baseUrl = 'https://well-pelican-real.ngrok-free.app/api/content';
+  
+  // Fallback static data jika API tidak tersedia
+  static final List<ArticleItem> _fallbackArticles = [
     ArticleItem(
       id: '1',
       title: 'Cara Mudah Memilah Sampah di Rumah untuk Pemula',
@@ -77,50 +82,79 @@ class ArticleService {
     ),
   ];
 
+  static Future<List<ArticleItem>> _fetchFromAPI() async {
+    try {
+      final response = await http.get(
+        Uri.parse(_baseUrl),
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonData = json.decode(response.body);
+        
+        if (jsonData.isEmpty) {
+          debugPrint('API returned empty array, using fallback data');
+          return _fallbackArticles;
+        }
+        
+        return jsonData.map((json) => ArticleItem.fromJson(json)).toList();
+      } else {
+        debugPrint('API error: ${response.statusCode}');
+        return _fallbackArticles;
+      }
+    } catch (e) {
+      debugPrint('Error fetching articles from API: $e');
+      return _fallbackArticles;
+    }
+  }
+
   // Get all articles
   static Future<List<ArticleItem>> getAllArticles() async {
-    // Simulate API delay
-    await Future.delayed(const Duration(milliseconds: 800));
-    return List.from(_articles);
+    return await _fetchFromAPI();
   }
 
   // Search articles
   static Future<List<ArticleItem>> searchArticles(String query) async {
-    await Future.delayed(const Duration(milliseconds: 400));
-    
     if (query.isEmpty) {
       return getAllArticles();
     }
     
+    final articles = await _fetchFromAPI();
     final lowercaseQuery = query.toLowerCase();
-    return _articles
+    
+    return articles
         .where((article) => 
             article.title.toLowerCase().contains(lowercaseQuery) ||
-            article.source.toLowerCase().contains(lowercaseQuery))
+            article.source.toLowerCase().contains(lowercaseQuery) ||
+            (article.content?.toLowerCase().contains(lowercaseQuery) ?? false))
         .toList();
   }
 
   // Get article by ID
   static Future<ArticleItem?> getArticleById(String id) async {
-    await Future.delayed(const Duration(milliseconds: 200));
-    
     try {
-      return _articles.firstWhere((article) => article.id == id);
+      final articles = await _fetchFromAPI();
+      return articles.firstWhere((article) => article.id == id);
     } catch (e) {
+      debugPrint('Article with ID $id not found: $e');
       return null;
     }
   }
 
   // Get new articles
   static Future<List<ArticleItem>> getNewArticles() async {
-    await Future.delayed(const Duration(milliseconds: 500));
-    return _articles.where((article) => article.isNew).toList();
+    final articles = await _fetchFromAPI();
+    return articles.where((article) => article.isNew).toList();
   }
 
   // Get articles by category (for future use)
   static Future<List<ArticleItem>> getArticlesByCategory(String category) async {
-    await Future.delayed(const Duration(milliseconds: 600));
+    final articles = await _fetchFromAPI();
     // For now, return all articles since we don't have categories yet
-    return _articles;
+    // In the future, you can filter by category here
+    return articles;
   }
 }

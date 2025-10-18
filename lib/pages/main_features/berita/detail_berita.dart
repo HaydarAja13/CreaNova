@@ -36,13 +36,34 @@ class DetailBeritaPage extends StatelessWidget {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Container(
-                    color: Colors.grey.shade300,
-                    child: Icon(
-                      Icons.image,
-                      color: Colors.grey.shade500,
-                      size: 64,
-                    ),
+                  Image.network(
+                    article.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: Colors.grey.shade300,
+                        child: Icon(
+                          Icons.image,
+                          color: Colors.grey.shade500,
+                          size: 64,
+                        ),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        color: Colors.grey.shade300,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: primaryGreen,
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                   // Gradient overlay
                   Container(
@@ -216,7 +237,23 @@ class DetailBeritaPage extends StatelessWidget {
   }
 
   String _getArticleContent(ArticleItem article) {
-    // Generate konten artikel berdasarkan judul
+    // Gunakan konten dari API jika tersedia, jika tidak gunakan konten default
+    if (article.content != null && article.content!.isNotEmpty) {
+      // Remove HTML tags for display
+      String content = article.content!;
+      content = content.replaceAll(RegExp(r'<[^>]*>'), '');
+      content = content.replaceAll('&nbsp;', ' ');
+      content = content.replaceAll('&amp;', '&');
+      content = content.replaceAll('&lt;', '<');
+      content = content.replaceAll('&gt;', '>');
+      content = content.replaceAll('&quot;', '"');
+      content = content.replaceAll('&#39;', "'");
+      content = content.replaceAll(r'\u201c', '"');
+      content = content.replaceAll(r'\u201d', '"');
+      return content.trim();
+    }
+    
+    // Generate konten artikel berdasarkan judul (fallback)
     final title = article.title.toLowerCase();
     
     if (title.contains('memilah sampah')) {
