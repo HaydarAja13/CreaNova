@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:myapp/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,7 +7,6 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../auth_service.dart';
 import '../../models/article_item.dart';
 import '../../services/user_repository.dart';
-import '../../services/article_service.dart';
 import '../../widgets/article_carousel.dart';
 import '../../widgets/bank_card.dart';
 import '../../models/bank_site.dart';
@@ -17,7 +15,6 @@ import 'maps/nearest_bank_map_screen.dart';
 import 'maps/nearest_finder.dart';
 import 'kategori_barang/kategori_barang.dart';
 import 'berita/berita.dart';
-import 'berita/detail_berita.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -35,54 +32,11 @@ class _HomeScreenState extends State<HomeScreen> {
   final _repo = UserRepository();
 
   late Future<Map<String, dynamic>> _profileDataFuture;
-  late Future<List<ArticleItem>> _articlesFuture;
 
   @override
   void initState() {
     super.initState();
     _profileDataFuture = _repo.getProfile();
-    _articlesFuture = _loadArticles();
-  }
-
-  Future<List<ArticleItem>> _loadArticles() async {
-    try {
-      debugPrint('Loading articles for home screen...');
-      final articles = await ArticleService.getAllArticles();
-      debugPrint('Loaded ${articles.length} articles from service');
-      
-      // Return only the first 3 articles for the home screen
-      final homeArticles = articles.take(3).toList();
-      debugPrint('Returning ${homeArticles.length} articles for home screen');
-      
-      return homeArticles;
-    } catch (e) {
-      debugPrint('Error loading articles for home screen: $e');
-      // Return fallback articles if API fails
-      return const [
-        ArticleItem(
-          id: 'a1',
-          title: 'Semarang Bersih Sukses Membentuk 1.074 Bank Sampah P…',
-          date: '1 Agustus 2025',
-          source: 'TukarIn',
-          imageUrl: 'https://picsum.photos/id/1011/1200/800',
-          isNew: true,
-        ),
-        ArticleItem(
-          id: 'a2',
-          title: 'Panduan Pilah Sampah Plastik di Rumah yang Praktis',
-          date: '29 Juli 2025',
-          source: 'TukarIn',
-          imageUrl: 'https://picsum.photos/id/1015/1200/800',
-        ),
-        ArticleItem(
-          id: 'a3',
-          title: 'Cerita Bank Sampah Warga: Dari Nol Jadi Mandiri',
-          date: '25 Juli 2025',
-          source: 'TukarIn',
-          imageUrl: 'https://picsum.photos/id/1021/1200/800',
-        ),
-      ];
-    }
   }
 
   Future<void> _handleRefresh() async {
@@ -91,7 +45,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() {
         _profileDataFuture = _repo.getProfile();
-        _articlesFuture = _loadArticles();
       });
     }
   }
@@ -243,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.06),
+                          color: Colors.black.withOpacity(.06),
                           blurRadius: 18,
                           offset: const Offset(0, 8),
                         ),
@@ -430,49 +383,37 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                   const SizedBox(height: 10),
-                  FutureBuilder<List<ArticleItem>>(
-                    future: _articlesFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const SizedBox(
-                          height: 200,
-                          child: Center(
-                            child: CircularProgressIndicator(
-                              color: AppColors.kGreen,
-                              strokeWidth: 2,
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      final articles = snapshot.data ?? [];
-                      
-                      if (articles.isEmpty) {
-                        return const SizedBox(
-                          height: 200,
-                          child: Center(
-                            child: Text(
-                              'Tidak ada artikel tersedia',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        );
-                      }
-                      
-                      return ArticleCarousel(
-                        items: articles,
-                        onTap: (item) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DetailBeritaPage(article: item),
-                            ),
-                          );
-                        },
-                      );
+                  ArticleCarousel(
+                    items: const [
+                      ArticleItem(
+                        id: 'a1',
+                        title:
+                            'Semarang Bersih Sukses Membentuk 1.074 Bank Sampah P…',
+                        date: '1 Agustus 2025',
+                        source: 'TukarIn',
+                        imageUrl: 'https://picsum.photos/id/1011/1200/800',
+                        isNew: true,
+                      ),
+                      ArticleItem(
+                        id: 'a2',
+                        title:
+                            'Panduan Pilah Sampah Plastik di Rumah yang Praktis',
+                        date: '29 Juli 2025',
+                        source: 'TukarIn',
+                        imageUrl: 'https://picsum.photos/id/1015/1200/800',
+                      ),
+                      ArticleItem(
+                        id: 'a3',
+                        title:
+                            'Cerita Bank Sampah Warga: Dari Nol Jadi Mandiri',
+                        date: '25 Juli 2025',
+                        source: 'TukarIn',
+                        imageUrl: 'https://picsum.photos/id/1021/1200/800',
+                      ),
+                    ],
+                    onTap: (item) {
+                      // TODO: buka halaman detail artikel / route dengan item.id/link
+                      // Navigator.pushNamed(context, '/article', arguments: item);
                     },
                   ),
                 ],
@@ -616,7 +557,7 @@ class _QuickAction extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
+                color: Colors.black.withOpacity(.05),
                 blurRadius: 12,
                 offset: const Offset(0, 6),
               ),

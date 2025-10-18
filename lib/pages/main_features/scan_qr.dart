@@ -1,15 +1,75 @@
+// qr_scan.dart
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+// ⬇️ NEW
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScanQrPage extends StatefulWidget {
-  /// (Opsional) Tangani payload QR sendiri. Jika null, halaman akan pop dengan string.
   final void Function(String code)? onScanned;
-
   const ScanQrPage({super.key, this.onScanned});
 
   @override
   State<ScanQrPage> createState() => _ScanQrPageState();
+}
+
+class _QrData {
+  final String? nameWeb;
+  final String? saldo;
+  const _QrData({this.nameWeb, this.saldo});
+}
+
+_QrData _parseQrPayload(String raw) {
+  // 1) Coba sebagai URL
+  final asUri = Uri.tryParse(raw);
+  if (asUri != null && (asUri.hasScheme || raw.startsWith('www.'))) {
+    final q = asUri.queryParameters;
+    final nw = q['name_web'];
+    final sd = q['saldo'];
+    if ((nw != null && nw.isNotEmpty) || (sd != null && sd.isNotEmpty)) {
+      return _QrData(nameWeb: nw, saldo: sd);
+    }
+  }
+
+  // 2) Coba sebagai JSON
+  try {
+    final Map<String, dynamic> m = jsonDecode(raw);
+    final nw = (m['name_web'] ?? m['nameWeb'])?.toString();
+    final sd = m['saldo']?.toString();
+    if ((nw != null && nw.isNotEmpty) || (sd != null && sd.isNotEmpty)) {
+      return _QrData(nameWeb: nw, saldo: sd);
+    }
+  } catch (_) {}
+
+  // 3) Key=Value (k=v&k=v / k=v;k=v / k=v,k=v)
+  final sep = raw.contains('&')
+      ? '&'
+      : raw.contains(';')
+      ? ';'
+      : raw.contains(',')
+      ? ','
+      : null;
+  if (sep != null) {
+    final map = <String, String>{};
+    for (final part in raw.split(sep)) {
+      final eq = part.indexOf('=');
+      if (eq > 0) {
+        final k = part.substring(0, eq).trim();
+        final v = part.substring(eq + 1).trim();
+        map[k] = v;
+      }
+    }
+    final nw = map['name_web'] ?? map['nameWeb'];
+    final sd = map['saldo'];
+    if ((nw != null && nw.isNotEmpty) || (sd != null && sd.isNotEmpty)) {
+      return _QrData(nameWeb: nw, saldo: sd);
+    }
+  }
+
+  return const _QrData();
 }
 
 class _ScanQrPageState extends State<ScanQrPage> {
@@ -26,24 +86,79 @@ class _ScanQrPageState extends State<ScanQrPage> {
     super.dispose();
   }
 
+  // ⬇️ NEW: ambil displayName dari Firestore (users/<uid>), fallback ke FirebaseAuth.displayName
+  Future<String> _getDisplayName() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return '';
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final name = (doc.data()?['displayName'] as String?)?.trim();
+      if (name != null && name.isNotEmpty) return name;
+    } catch (_) {}
+    return (user.displayName ?? '').trim();
+  }
+
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_isHandlingResult) return;
 
     final barcode = capture.barcodes.firstOrNull;
     final value = barcode?.rawValue;
-
     if (value == null || value.isEmpty) return;
 
     setState(() => _isHandlingResult = true);
     await _controller.stop();
-
     if (!mounted) return;
 
-    if (widget.onScanned != null) {
-      widget.onScanned!(value);
-      Navigator.pop(context);
-    } else {
-      Navigator.pop(context, value);
+    try {
+      // Ambil displayName dari Firestore / Auth seperti sebelumnya
+      final nameApp = await _getDisplayName();
+      final nm = (nameApp.isEmpty) ? 'Pengguna' : nameApp;
+
+      // === pake parser QR ===
+      final parsed = _parseQrPayload(value);
+      final nameWeb = (parsed.nameWeb == null || parsed.nameWeb!.isEmpty)
+          ? 'haydar' // fallback kalau QR tak bawa name_web
+          : parsed.nameWeb!;
+      // Sanitasi saldo: hanya digit
+      final saldo = (parsed.saldo ?? '').replaceAll(RegExp(r'[^0-9]'), '');
+      if (saldo.isEmpty) {
+        // fallback kalau QR tak bawa saldo
+        // (optional: kamu bisa kasih error)
+        // throw Exception('Saldo tidak ditemukan di QR');
+      }
+
+      final uri = Uri.https(
+        'well-pelican-real.ngrok-free.app',
+        '/api/v1/transaction/update-balance',
+        {
+          'name_web': nameWeb,
+          'saldo': saldo.isEmpty ? '0' : saldo,
+          'name_app': nm,
+        },
+      );
+
+      // Panggil API
+      // ignore: use_build_context_synchronously
+      final res = await http.get(uri);
+      if (!mounted) return;
+
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Saldo berhasil diperbarui')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal update saldo: ${res.statusCode}')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    } finally {
+      // Tutup halaman TANPA mengirim balik link QR (biar tidak muncul lagi di layar sebelumnya)
+      if (mounted) Navigator.pop(context);
     }
   }
 
@@ -53,7 +168,6 @@ class _ScanQrPageState extends State<ScanQrPage> {
 
     return Scaffold(
       backgroundColor: Colors.black,
-      // Membuat body bisa berada di belakang AppBar
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -69,15 +183,10 @@ class _ScanQrPageState extends State<ScanQrPage> {
       ),
       body: Stack(
         children: [
-          // Pratinjau kamera
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
           ),
-
-          // ✅ DIUBAH: Bungkus CustomPaint dengan SizedBox.expand()
-          // Ini memaksa painter untuk menggunakan seluruh layar sebagai kanvasnya,
-          // sehingga perhitungan `size.center` akan benar.
           SizedBox.expand(
             child: CustomPaint(
               painter: _ScannerOverlayPainter(
@@ -85,15 +194,12 @@ class _ScanQrPageState extends State<ScanQrPage> {
               ),
             ),
           ),
-
-          // Tombol kontrol di bagian bawah
           _buildControls(context),
         ],
       ),
     );
   }
 
-  /// Membangun tombol kontrol (senter)
   Widget _buildControls(BuildContext context) {
     return Positioned(
       bottom: 48 + MediaQuery.of(context).padding.bottom,
