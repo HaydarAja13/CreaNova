@@ -84,6 +84,8 @@ class ArticleService {
 
   static Future<List<ArticleItem>> _fetchFromAPI() async {
     try {
+      debugPrint('Fetching articles from API: $_baseUrl');
+      
       final response = await http.get(
         Uri.parse(_baseUrl),
         headers: {
@@ -91,6 +93,9 @@ class ArticleService {
           'Content-Type': 'application/json',
         },
       ).timeout(const Duration(seconds: 10));
+
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final List<dynamic> jsonData = json.decode(response.body);
@@ -100,9 +105,23 @@ class ArticleService {
           return _fallbackArticles;
         }
         
-        return jsonData.map((json) => ArticleItem.fromJson(json)).toList();
+        debugPrint('Successfully parsed ${jsonData.length} articles from API');
+        
+        final articles = <ArticleItem>[];
+        for (int i = 0; i < jsonData.length; i++) {
+          try {
+            final article = ArticleItem.fromJson(jsonData[i]);
+            articles.add(article);
+            debugPrint('Successfully parsed article ${i + 1}: ${article.title}');
+          } catch (e) {
+            debugPrint('Error parsing article ${i + 1}: $e');
+            debugPrint('Article data: ${jsonData[i]}');
+          }
+        }
+        
+        return articles.isNotEmpty ? articles : _fallbackArticles;
       } else {
-        debugPrint('API error: ${response.statusCode}');
+        debugPrint('API error: ${response.statusCode} - ${response.body}');
         return _fallbackArticles;
       }
     } catch (e) {
